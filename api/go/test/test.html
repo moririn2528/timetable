@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>画像を回転させるサンプル</title>
+<script>
+var d = 0;
+function kaiten(x){
+  var e = document.getElementById("img1");
+  d = d + x;
+  e.style.transform = "rotate(" + d + "deg)";
+}
+</script>
+</head>
+<body>
+<img id="img1" src="sample.png" /><br>
+<input type="button" value="右へ90度回転" onclick="kaiten(31);">
+<input type="button" value="左へ90度回転" onclick="kaiten(-31);">
+<input type="button" value="180度回転" onclick="kaiten(180);">
+</body>
+</html>
