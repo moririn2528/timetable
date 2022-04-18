@@ -1,6 +1,8 @@
 const server = {
 	get: async function (path) {
-		const res = await fetch("http://localhost:54321/api/" + path);
+		const port = location.port;
+		console.log(port);
+		const res = await fetch("http://localhost:" + port + "/api/" + path);
 		if (res.status != 200) {
 			console.error(res);
 			return;

@@ -27,6 +27,9 @@ func TestClassGraph(t *testing.T) {
 		if !ok {
 			t.Fatal("edge id error")
 		}
+		if e.Board != -1 && (e.Board < 0 || e.Piece < 0 || 60 < e.Piece) {
+			t.Fatalf("edge error, %v", e)
+		}
 		edges = append(edges, ClassEdge{
 			From: f,
 			To:   to,

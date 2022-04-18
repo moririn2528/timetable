@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"timetable/errors"
+	"timetable/library/bitset"
 	"timetable/usecase"
 )
 
@@ -187,8 +188,99 @@ func timetableChangeSolver(cost [][][][]int, start [2]int, units *[D][P][]int) (
 	return res, nil
 }
 
+// 時間割がまとめられるかどうか
+// return able: []bitset able[i][j*P+k]: クラス i (index) は j,k コマでまとめられるかどうか
+func ableCompressTimetable(
+	tt_all []usecase.Timetable,
+	graph usecase.ClassGraph,
+	start_day time.Time,
+) ([]bitset.Bitset, error) {
+	n := len(graph.Nodes)
+	classes := make([][]int, D*P)
+	for _, t := range tt_all {
+		cls, ok := graph.Id2index[t.ClassId]
+		if !ok {
+			return nil, errors.NewError("class id error", t.ClassId)
+		}
+		d := int(t.Day.Sub(start_day).Hours())
+		if d < 0 || D <= d/24 {
+			continue
+		}
+		d /= 24
+		idx := d*P + t.FramePeriod
+		classes[idx] = append(classes[idx], cls)
+	}
+	ful := make([][]int, n)
+	// これが最適化されないため遅いかもしれない
+	for i := 0; i < n; i++ {
+		for j, f := range graph.Nodes[i].Parent {
+			pf := graph.Nodes[i].ParentFill[j]
+			if pf.Board == -1 {
+				continue
+			}
+			nes := pf.Board - len(ful[f]) + 1
+			if nes > 0 {
+				ful[f] = append(ful[f], make([]int, nes)...)
+			}
+			ful[f][pf.Board] |= 1 << pf.Piece
+		}
+	}
+	res := make([]bitset.Bitset, n)
+	for i := 0; i < n; i++ {
+		res[i] = bitset.NewBitset(D * P)
+	}
+	for i := 0; i < D*P; i++ {
+		// class index, board, piece
+		// board -2 のときは full とする、-1 は捨て
+		var vec [][3]int
+		for j := 0; j < len(classes[i]); j++ {
+			vec = append(vec, [3]int{
+				classes[i][j],
+				-2, -2,
+			})
+		}
+		board := make([]int, n)
+		want := make([]int, n)
+		for j := 0; j < n; j++ {
+			board[j] = -1
+		}
+		for len(vec) > 0 {
+			las := vec[len(vec)-1]
+			vec = vec[:len(vec)-1]
+			c, b, p := las[0], las[1], las[2]
+			if b == -1 || board[c] == -2 {
+				continue
+			}
+			if b != -2 {
+				if board[c] == -1 {
+					board[c] = b
+					want[c] = ful[c][b]
+				}
+				if board[c] != b {
+					board[c] = -2
+					continue
+				}
+				want[c] &= ^(1 << p)
+				if want[c] > 0 {
+					continue
+				}
+			}
+			board[c] = -2
+			res[c].Set(i, true)
+			for j, par := range graph.Nodes[c].Parent {
+				pf := graph.Nodes[c].ParentFill[j]
+				vec = append(vec, [3]int{
+					par,
+					pf.Board, pf.Piece,
+				})
+			}
+		}
+
+	}
+	return res, nil
+}
+
 // 時間割圧縮
-// クラスグラフで、授業があるクラスが、指定クラスの子孫でなく、重複する子孫が存在するときまとめれない
 // return (units, others, idxs, error)
 // units: 圧縮された時間割、tt_all の index が入っている
 // others: units 以外のもの
@@ -200,23 +292,25 @@ func compressTimetable(
 	start_day time.Time,
 	class_avail []bool,
 	holidays []time.Time,
+	can_compress bitset.Bitset,
 ) (*[D][P][]int, *[D][P][]int, [][2]int, error) {
 	n := len(graph.Nodes)
-	out_class := make([]bool, n) //out class index
 	in_class := make([]bool, n)
 	for i := 0; i < n; i++ {
 		if graph.NodeIn(class_idx, i) {
 			in_class[i] = true
 			continue
 		}
-		if graph.NodeCross(class_idx, i) {
-			out_class[i] = true
-		}
 	}
 	var idxs [][2]int
 	var units [D][P][]int
 	var other [D][P][]int
 	var flag [D][P]bool // まとめられないコマが true
+	for i := 0; i < D; i++ {
+		for j := 0; j < P; j++ {
+			flag[i][j] = !can_compress.Test(i*P + j)
+		}
+	}
 	for i, t := range tt_all {
 		d := int(t.Day.Sub(start_day).Hours())
 		if d < 0 || D <= d/24 {
@@ -225,9 +319,6 @@ func compressTimetable(
 		d /= 24
 		p := t.FramePeriod
 		c := graph.Id2index[t.ClassId]
-		if out_class[c] {
-			flag[d][p] = true
-		}
 		if !flag[d][p] && in_class[c] {
 			units[d][p] = append(units[d][p], i)
 		} else {
@@ -262,8 +353,6 @@ func compressTimetable(
 			}
 		}
 	}
-	log.Println(flag)
-	log.Println(tt_all)
 	for i := 0; i < D; i++ {
 		for j := 0; j < P; j++ {
 			if flag[i][j] {
@@ -386,7 +475,10 @@ func (*SolverClass) TimetableChange(
 	if err != nil {
 		return nil, 0, errors.ErrorWrap(err)
 	}
-	// create place_id
+	can_compress, err := ableCompressTimetable(tt_all, graph, start_day)
+	if err != nil {
+		return nil, 0, errors.ErrorWrap(err)
+	}
 
 	change_unit_idx := [2]int{
 		int(change_unit.Day.Sub(start_day).Hours()) / 24, change_unit.FramePeriod,
@@ -396,12 +488,13 @@ func (*SolverClass) TimetableChange(
 		class_dis := class_queue[0][1]
 		class_queue = class_queue[1:]
 		units, others, idxs, err := compressTimetable(
-			tt_all, graph, class_idx, start_day, graph.Nodes[class_idx].Available, holidays,
+			tt_all, graph, class_idx, start_day, graph.Nodes[class_idx].Available, holidays, can_compress[class_idx],
 		)
 		if err != nil {
 			return nil, cost_inf, errors.ErrorWrap(err)
 		}
 		log.Println("class id", graph.Nodes[class_idx].Id)
+		log.Println("compress able", can_compress[class_idx])
 		log.Println("idxs", idxs)
 		for _, l := range idxs {
 			i, j := l[0], l[1]
@@ -439,7 +532,7 @@ func (*SolverClass) TimetableChange(
 			t := tt_all[idx]
 			t.Day = day
 			t.FramePeriod = tj
-			t.FrameDayWeek = day.Day() - 1
+			t.FrameDayWeek = int(day.Weekday()) - 1
 			t.FrameId = t.FrameDayWeek*P + t.FramePeriod
 			res = append(res, t)
 		}

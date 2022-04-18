@@ -1,6 +1,8 @@
 const server = {
 	get: async function (path) {
-		const res = await fetch("http://localhost:54321/api/" + path);
+		const port = location.port;
+		console.log(port);
+		const res = await fetch("http://localhost:" + port + "/api/" + path);
 		if (res.status != 200) {
 			console.error(res);
 			return;
@@ -51,7 +53,7 @@ const sleep = (waitTime) => new Promise((resolve) => setTimeout(resolve, waitTim
 				}
 
 				// ヒットの件数をページに出力
-				hitNum = "<span>検索結果</span>：" + searchResult.length + "件見つかりました。";
+				hitNum = "<span>検索結果</span>:" + searchResult.length + "件見つかりました。";
 				$(".search-result__hit-num").append(hitNum);
 			}
 		},
