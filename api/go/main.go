@@ -27,14 +27,14 @@ func init() {
 	time.Local = loc
 }
 
-func test() {
-	_, err := usecase.ChangeTimetable(0, time.Date(2021, 4, 1, 0, 0, 0, 0, time.Local), 3210405)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("ok!")
-	os.Exit(1)
-}
+// func test() {
+// 	_, err := usecase.ChangeTimetable(0, time.Date(2021, 4, 1, 0, 0, 0, 0, time.Local), 3210405)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	log.Println("ok!")
+// 	os.Exit(1)
+// }
 
 func main() {
 	defer database.Close()

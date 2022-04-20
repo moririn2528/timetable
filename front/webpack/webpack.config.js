@@ -4,12 +4,12 @@ module.exports = {
 	// 指定できる値としては、ファイル名の文字列や、それを並べた配列やオブジェクト
 	// 下記はオブジェクトとして指定した例
 	entry: {
-		bundle: "./typescript/app.ts",
+		bundle: "./setting/src/app.ts",
 	},
 	output: {
 		// モジュールバンドルを行った結果を出力する場所やファイル名の指定
 		// "__dirname"はこのファイルが存在するディレクトリを表すnode.jsで定義済みの定数
-		path: path.join(__dirname, "html"),
+		path: path.join(__dirname, "setting/dist"),
 		filename: "[name].js", // [name]はentryで記述した名前(この例ではbundle）が入る
 	},
 	// モジュールとして扱いたいファイルの拡張子を指定する
@@ -21,7 +21,7 @@ module.exports = {
 	devServer: {
 		// webpack-dev-serverの公開フォルダ
 		static: {
-			directory: path.join(__dirname, "html"),
+			directory: path.join(__dirname, "setting/dist"),
 		},
 	},
 	// モジュールに適用するルールの設定（ここではローダーの設定を行う事が多い）
