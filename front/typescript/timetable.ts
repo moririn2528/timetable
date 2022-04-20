@@ -28,8 +28,8 @@ const timetableDecoder = record({
 		classes: [0],
 	};
 	let data = {
-		day: new Date(2021, 3, 1),
-		//classes: [],
+		day: new Date(2020, 3, 1),
+		classes: [0],
 	};
 	interface UnitElemType {
 		subject: HTMLTableCellElement;
@@ -175,6 +175,7 @@ const timetableDecoder = record({
 				return ("00" + String(x)).slice(-2);
 			};
 			const date_str = `${data.day.getFullYear()}-${to_str(data.day.getMonth() + 1)}-${to_str(data.day.getDate())}`;
+			console.log(await server.get("timetable/class?id=" + search_data.classes.join("_") + "&day=" + date_str));
 			const res = await server.get("timetable/class?id=" + search_data.classes.join("_") + "&day=" + date_str).then(array(timetableDecoder));
 			console.log(res);
 			timetable.draw(res);
@@ -182,7 +183,6 @@ const timetableDecoder = record({
 	};
 
 	window.addEventListener("load", async function (e) {
-		data.day = new Date(2021, 3, 1);
 		api.get_timetable();
 	});
 })();

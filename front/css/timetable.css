@@ -53,3 +53,6 @@ body {
 	height: 15px;
 	font-size: 10px;
 }
+.selected_classes{
+	display: flex;
+}

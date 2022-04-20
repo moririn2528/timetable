@@ -1,11 +1,5 @@
-# 使用しない
-```
-class.js:11 Uncaught ReferenceError: exports is not defined
-```
-というエラーが出て、この対処法は tsconfig.json の "module": "commonjs" を消すというものばかり。これを消すと "typescript-json-decorder" が使えない。
-これが使えないのであれば、型はアノテーションレベルに下がる。
-
-また、js にコンパイルしているので、実行時のエラーでどこでエラーが出ているのかわからない。これらの不便さは型がつくメリットを超えるため、使用しないことにした。
+# 結局用いる
+tsc でコンパイルすると、サーバーが go 言語だとエラー吐かれる。これは、tsc のコンパイルによって生まれる javascript は意図的にそのまま動かせないようにしているかららしい。webpack を用いることで解決。
 
 # webpack 仕様時の実行方法
 
@@ -20,3 +14,10 @@ class.js:11 Uncaught ReferenceError: exports is not defined
 
 # ポートを閉じる
 `netstat -ano | find ":8080"` からプロセス ID を検索、タスクマネージャで削除
+
+
+# 参考
+環境構築
+https://qiita.com/sansaisoba/items/921438a19cbf5a31ec53
+
+

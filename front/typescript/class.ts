@@ -12,9 +12,15 @@ const inputGraphDecoder = record({
 		elems: HTMLDivElement[];
 		ids: number[];
 		id2index: Map<number, number>;
+	} = {
+		elems: [],
+		ids: [],
+		id2index: new Map(),
 	};
 	let edges: {
 		vertex: [number, number][];
+	} = {
+		vertex: [],
 	};
 	let node_moving: {
 		target: HTMLDivElement | null;
@@ -39,7 +45,6 @@ const inputGraphDecoder = record({
 				const pos_str = pos_arr[i].split(":");
 				const x = pos_str[0];
 				const y = pos_str[1];
-				console.assert(id in nodes.id2index);
 				const idx = nodes.id2index.get(id);
 				if (idx == null) {
 					console.log(`クラス id:${id} は存在しません。スキップします。`);
@@ -88,8 +93,8 @@ const inputGraphDecoder = record({
 			if (canvas == null || !(canvas instanceof HTMLCanvasElement) || field == null) {
 				throw `getElementById graph_canvas: ${canvas}, graph_field: ${field}`;
 			}
-			canvas.style.width = `${field.clientWidth}`;
-			canvas.style.height = `${field.clientHeight}`;
+			canvas.width = field.clientWidth;
+			canvas.height = field.clientHeight;
 			const field_rect = field.getBoundingClientRect();
 			const corner_x = field_rect.left;
 			const corner_y = field_rect.top;
@@ -133,7 +138,7 @@ const inputGraphDecoder = record({
 			const target = e.currentTarget;
 			//const targetW = target.width;
 			if (target == null || !(target instanceof HTMLDivElement)) {
-				console.assert(`currentTarget error: ${target}`);
+				console.warn(`currentTarget error: ${target}`);
 				return;
 			}
 			const target_rect = target.getBoundingClientRect();
@@ -150,7 +155,7 @@ const inputGraphDecoder = record({
 		mouse_move: function (e: MouseEvent) {
 			const target = node_moving.target;
 			if (target == null) {
-				console.assert("node_moving target is null");
+				console.warn("node_moving target is null");
 				return;
 			}
 			let x = e.pageX + node_moving.x;
@@ -166,7 +171,7 @@ const inputGraphDecoder = record({
 		mouse_up: function () {
 			const target = node_moving.target;
 			if (target == null) {
-				console.assert("node_moving target is null");
+				console.warn("node_moving target is null");
 				return;
 			}
 			//console.log(target.style.left,target.style.top);
@@ -180,7 +185,7 @@ const inputGraphDecoder = record({
 	const board_event = {
 		mouse_down: function (e: MouseEvent) {
 			if (e.target == null || !(e.target instanceof Element)) {
-				console.assert(`target error: ${e.target}`);
+				console.warn(`target error: ${e.target}`);
 				return;
 			}
 			if (e.target.classList.contains("node")) {
@@ -189,7 +194,7 @@ const inputGraphDecoder = record({
 			}
 			const elem = e.currentTarget; // addEventListener したもの
 			if (!(elem instanceof HTMLDivElement)) {
-				console.assert(`currentTarget error: ${elem}`);
+				console.warn(`currentTarget error: ${elem}`);
 				return;
 			}
 			elem.classList.add("moving");
@@ -220,7 +225,7 @@ const inputGraphDecoder = record({
 			window.removeEventListener("mouseup", board_event.mouse_up);
 			const target = node_moving.target;
 			if (target == null) {
-				console.assert("node_moving target is null");
+				console.warn("node_moving target is null");
 				return;
 			}
 			target.classList.remove("moving");
@@ -249,7 +254,6 @@ const inputGraphDecoder = record({
 			nodes.ids.push(id);
 		}
 		node_event.load_pos();
-
 		for (let i = 0; i < res.edges.length; i++) {
 			const edge = res.edges[i];
 			const from = nodes.id2index.get(edge.from);

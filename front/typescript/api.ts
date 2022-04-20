@@ -1,7 +1,7 @@
 export const server = {
 	get: async function (path: string) {
 		const port = location.port;
-		console.log(port);
+		console.log("http://localhost:" + port + "/api/" + path);
 		const res = await fetch("http://localhost:" + port + "/api/" + path);
 		if (res.status != 200) {
 			console.error(res);
