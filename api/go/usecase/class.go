@@ -202,13 +202,9 @@ func (graph *ClassGraph) Index2IdArray(node_idx []int) ([]int, error) {
 	return res, nil
 }
 
-func (graph *ClassGraph) GetDescendants(node_ids []int) ([]int, error) {
+func (graph *ClassGraph) GetDescendants(node_idxs []int) ([]int, error) {
 	b := bitset.NewBitset(len(graph.Nodes))
-	for _, id := range node_ids {
-		idx, ok := graph.Id2index[id]
-		if !ok {
-			return nil, errors.NewError("input id error")
-		}
+	for _, idx := range node_idxs {
 		b = b.Or(graph.descendants[idx])
 	}
 	var res []int
@@ -218,6 +214,23 @@ func (graph *ClassGraph) GetDescendants(node_ids []int) ([]int, error) {
 		}
 	}
 	return res, nil
+}
+func (graph *ClassGraph) GetAncestors(node_idxs []int) []int {
+	used := make([]bool, len(graph.Nodes))
+	vec := make([]int, len(node_idxs))
+	var res []int
+	copy(vec, node_idxs)
+	for len(vec) > 0 {
+		idx := vec[len(vec)-1]
+		vec = vec[:len(vec)-1]
+		if used[idx] {
+			continue
+		}
+		used[idx] = true
+		res = append(res, idx)
+		vec = append(vec, graph.Nodes[idx].Parent...)
+	}
+	return res
 }
 
 func (graph *ClassGraph) NodeIn(a int, b int) bool {

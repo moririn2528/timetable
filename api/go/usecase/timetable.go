@@ -26,11 +26,39 @@ type Timetable struct {
 	Day time.Time `json:"day"`
 }
 
-func GetTimetableByClass() {
-
+type TimetableMove struct {
+	Unit    Timetable `json:"timetable"`
+	Day     time.Time `json:"day"`
+	FrameId int       `json:"frame_id"`
 }
 
-func ChangeTimetable(duration_id int, search_day time.Time, change_id int) ([]Timetable, error) {
+func GetTimetableByClass(class_ids []int, date time.Time) ([]Timetable, error) {
+
+	graph, err := NewClassGraph()
+	if err != nil {
+		return nil, errors.ErrorWrap(err)
+	}
+	class_idxs, err := graph.Id2IndexArray(class_ids)
+	if err != nil {
+		return nil, errors.ErrorWrap(err)
+	}
+	class_idxs_tmp := graph.GetAncestors(class_idxs)
+	class_ids_all := make([]int, len(class_idxs_tmp))
+	for i, idx := range class_idxs_tmp {
+		class_ids_all[i] = graph.Nodes[idx].Id
+	}
+	duration_id, err := Db_any.GetDurationId(date)
+	if err != nil {
+		return nil, errors.ErrorWrap(err)
+	}
+	timetable, err := Db_timetabale.GetTimetable(duration_id, class_ids_all, -1, date, date.AddDate(0, 0, 7))
+	if err != nil {
+		return nil, errors.ErrorWrap(err)
+	}
+	return timetable, nil
+}
+
+func ChangeTimetable(duration_id int, search_day time.Time, change_id int) ([]TimetableMove, error) {
 	tt, err := Db_timetabale.GetTimetable(
 		duration_id, []int{}, -1, search_day, search_day.AddDate(0, 0, COUNT_DAY),
 	)

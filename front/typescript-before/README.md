@@ -3,9 +3,9 @@ tsc でコンパイルすると、サーバーが go 言語だとエラー吐か
 
 # webpack 仕様時の実行方法
 
-`yarn start` で実行、localhost:8080 で確認可能
+`npm start` で実行、localhost:8080 で確認可能
 
-`yarn run build` で [name].js が出力される。
+`npm run build` で [name].js が出力される。
 
 # typescript to javascript
 `tsc` 

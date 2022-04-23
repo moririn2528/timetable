@@ -133,6 +133,7 @@ func timetableChangeSolver(cost [][][][]int, start [2]int, units *[D][P][]int) (
 	for h.Len() > 0 {
 		mc := heap.Pop(h).([IDX + 1]int)
 		c, x, y, z := mc[0], mc[1], mc[2], mc[3]
+		log.Println("in dp", x, y, y, z)
 		if s <= c {
 			break
 		}
@@ -423,6 +424,7 @@ func getCost(
 				pi := place_indexes[u]
 				place_count[k][l][pi]++
 			}
+			log.Println("cost", i, j, k, l, cost[i][j][k][l])
 		}
 	}
 	return cost
@@ -453,7 +455,7 @@ func (*SolverClass) TimetableChange(
 	teachers []usecase.Teacher,
 	start_day time.Time,
 	holidays []time.Time,
-) ([]usecase.Timetable, int, error) {
+) ([]usecase.TimetableMove, int, error) {
 	// 時間割変更
 	// move, cost, error
 	cost_inf := math.MaxInt
@@ -522,7 +524,7 @@ func (*SolverClass) TimetableChange(
 			})
 		}
 	}
-	var res []usecase.Timetable
+	var res []usecase.TimetableMove
 	for i, v := range final_move {
 		to := final_move[(i+1)%len(final_move)]
 		vi, vj := v[0], v[1]
@@ -530,11 +532,11 @@ func (*SolverClass) TimetableChange(
 		day := start_day.AddDate(0, 0, ti)
 		for _, idx := range final_units[vi][vj] {
 			t := tt_all[idx]
-			t.Day = day
-			t.FramePeriod = tj
-			t.FrameDayWeek = int(day.Weekday()) - 1
-			t.FrameId = t.FrameDayWeek*P + t.FramePeriod
-			res = append(res, t)
+			res = append(res, usecase.TimetableMove{
+				Unit:    t,
+				Day:     day,
+				FrameId: (int(day.Weekday())-1)*P + tj,
+			})
 		}
 	}
 	return res, final_cost, nil
