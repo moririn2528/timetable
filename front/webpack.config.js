@@ -5,7 +5,6 @@ module.exports = {
 	// 下記はオブジェクトとして指定した例
 	entry: {
 		timetable: "./typescript/timetable.tsx",
-		test: "./typescript/test.tsx",
 		class: "./typescript/class.tsx",
 	},
 	output: {
