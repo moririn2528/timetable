@@ -38,6 +38,7 @@ type SolverClass interface {
 		teachers []Teacher,
 		start_day time.Time,
 		holidays []time.Time,
+		teacher_relax int,
 	) ([]TimetableMove, int, error)
 }
 

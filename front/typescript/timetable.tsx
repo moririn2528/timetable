@@ -1,9 +1,7 @@
 import { getClass, server, InputGraphType, sleep } from "./api";
 import { decodeType, record, number, string, array, undef } from "typescript-json-decoder";
-import React from "react";
-import ReactDOM from "react-dom";
+import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { HotUpdateChunk } from "webpack";
 
 const jsdate = function (val: any) {
 	return new Date(string(val));
@@ -34,130 +32,6 @@ const timetableMoveDecoder = record({
 });
 
 (function () {
-	let search_data = {
-		classes: [0],
-	};
-	let data = {
-		day: new Date(2020, 3, 1),
-		classes: [0],
-	};
-	interface UnitElemType {
-		subject: HTMLTableCellElement;
-		class: HTMLTableCellElement;
-		teacher: HTMLTableCellElement;
-	}
-	let units: { elems: UnitElemType[]; objects: TimetableType[][] };
-	units = {
-		elems: [],
-		objects: [], // [i][j]: frame_id=i, j 個目の object
-	};
-
-	const timetable = {
-		init: function () {
-			const frame_num = 42;
-			units.elems = new Array(frame_num);
-			units.objects = new Array(frame_num);
-			const day_weak_strs = ["月", "火", "水", "木", "金", "土"];
-			const tt = document.getElementById("timetable");
-			if (tt == null) throw "getElementById timetable error";
-			tt.innerHTML = "";
-			const tt_head = document.createElement("tr");
-			tt.appendChild(tt_head);
-			tt_head.appendChild(document.createElement("th"));
-			for (let i = 0; i < day_weak_strs.length; i++) {
-				const day = new Date(data.day.getTime());
-				let dif = i + 1 - day.getDay();
-				if (dif < 0) {
-					dif += 7;
-				}
-				day.setDate(day.getDate() + dif);
-				const t = document.createElement("th");
-				t.innerText = `${day.getMonth() + 1}/${day.getDate()}(${day_weak_strs[i]})`;
-				tt_head.appendChild(t);
-				if (dif == 0) {
-					t.style.backgroundColor = "#95f9ef";
-				}
-			}
-
-			const add_t_col = function (t: HTMLTableElement) {
-				const tr = document.createElement("tr");
-				t.appendChild(tr);
-				const td = document.createElement("td");
-				tr.appendChild(td);
-				return td;
-			};
-			for (let i = 0; i < 7; i++) {
-				const t_line = document.createElement("tr");
-				tt.appendChild(t_line);
-				const th = document.createElement("th");
-				th.innerText = `${i + 1}限`;
-				t_line.appendChild(th);
-				for (let j = 0; j < 6; j++) {
-					const t_wrap = document.createElement("td");
-					t_wrap.classList.add("unit");
-					t_line.appendChild(t_wrap);
-					const t = document.createElement("table");
-					t_wrap.appendChild(t);
-					const t_subject = add_t_col(t);
-					t_subject.classList.add("subject");
-					const t_class = add_t_col(t);
-					t_class.classList.add("class");
-					const t_teacher = add_t_col(t);
-					t_teacher.classList.add("teacher");
-					const id = j * 7 + i;
-					units.elems[id] = {
-						subject: t_subject,
-						class: t_class,
-						teacher: t_teacher,
-					};
-				}
-			}
-			for (let i = 0; i < frame_num; i++) {
-				units.objects[i] = new Array();
-			}
-		},
-
-		draw: function (timetables: TimetableType[]) {
-			this.init();
-			for (let i = 0; i < timetables.length; i++) {
-				const obj = timetables[i];
-				const id = obj.frame_id;
-				units.objects[id].push(obj);
-			}
-
-			console.log(units);
-			for (let i = 0; i < units.objects.length; i++) {
-				if (units.objects[i].length == 0) {
-					continue;
-				}
-				if (units.objects[i].length >= 2) {
-					units.elems[i].subject.innerText = String(units.objects[i].length);
-					continue;
-				}
-				console.log(i);
-				const obj = units.objects[i][0];
-				const elem = units.elems[i];
-				elem.subject.innerText = obj.subject_name;
-				elem.class.innerText = obj.class_name;
-				elem.teacher.innerText = obj.teacher_name;
-			}
-		},
-	};
-
-	const api = {
-		get_timetable: async function () {
-			console.assert(search_data.classes.length > 0);
-			const to_str = function (x: number) {
-				return ("00" + String(x)).slice(-2);
-			};
-			const date_str = `${data.day.getFullYear()}-${to_str(data.day.getMonth() + 1)}-${to_str(data.day.getDate())}`;
-			const res = await server.get("timetable/class?id=" + search_data.classes.join("_") + "&day=" + date_str).then(array(timetableDecoder));
-			console.log(res);
-			timetable.draw(res);
-		},
-	};
-
-	// react
 	type InputButtonProps = {
 		callback: (param: { show?: boolean; text?: string }) => void;
 	};
@@ -317,7 +191,7 @@ const timetableMoveDecoder = record({
 			// candidates を抜く
 			for (let i = 0; i < this.props.data.length; i++) {
 				const elem = this.props.data[i];
-				if (this.state.candidates.find((c) => c.id === elem.id) == null) {
+				if (this.state.setting.find((c) => c.id === elem.id) == null) {
 					data.push({ ...elem });
 				}
 			}
@@ -415,6 +289,7 @@ const timetableMoveDecoder = record({
 		selected_classes: SimpleData[];
 		units: TimetableType[][];
 		change_units: TimetableMoveType[];
+		change_error?: string;
 	};
 	class Timetable extends React.Component<TimetableProps, TimetableState> {
 		day_weak_strs = ["月", "火", "水", "木", "金", "土"];
@@ -422,12 +297,12 @@ const timetableMoveDecoder = record({
 		P = 7;
 		constructor(props: TimetableProps) {
 			super(props);
+			console.log("constructor timetalbe");
 			this.state = {
 				selected_classes: [],
 				units: new Array(this.D * this.P).fill([]),
 				change_units: [],
 			};
-			this.getTimetable = this.getTimetable.bind(this);
 			this.setUnits = this.setUnits.bind(this);
 		}
 
@@ -466,7 +341,10 @@ const timetableMoveDecoder = record({
 						server
 							.get(`timetable/change?change_id=${change_id}&duration_id=1&day=${date2str(this.props.date)}`)
 							.then(array(timetableMoveDecoder))
-							.then((data) => this.setState({ change_units: data }));
+							.then((data) => this.setState({ change_units: data, change_error: undefined }))
+							.catch((e) => {
+								this.setState({ change_error: String(e) });
+							});
 					};
 					table_row.push(<TimetableUnit key={j} units={this.state.units[j * 7 + i]} onClick={onClick} />);
 				}
@@ -483,14 +361,17 @@ const timetableMoveDecoder = record({
 
 		printChanges() {
 			const changes = this.state.change_units;
+			if (this.state.change_error != null) {
+				return <div className="changes">サーバーエラー: {this.state.change_error}</div>;
+			}
 			return (
 				<div className="changes">
 					{changes.map((d) => {
 						const tim = d.timetable;
 						return (
-							<div>
-								クラス名: {tim.class_name}, 教科: {tim.subject_name}, 先生: {tim.teacher_name}
-								日時: {date2str(tim.day)} {tim.frame_period} 限 変更日時: {date2str(d.day)} {d.frame_id / 7}限
+							<div key={d.timetable.id}>
+								クラス名: {tim.class_name}, 教科: {tim.subject_name}, 先生: {tim.teacher_name} 日時: {date2str(tim.day)} {tim.frame_period + 1} 限 変更日時: {date2str(d.day)}{" "}
+								{(d.frame_id % 7) + 1}限
 							</div>
 						);
 					})}
@@ -534,11 +415,24 @@ const timetableMoveDecoder = record({
 				.then(this.setUnits);
 		}
 
+		componentDidUpdate(prevprops: TimetableProps) {
+			if (this.props.date !== prevprops.date) {
+				console.log(this.state.selected_classes);
+				this.getTimetable(this.state.selected_classes);
+			}
+		}
+
 		render(): React.ReactNode {
+			const updateSelected = (data: SimpleData[]) => {
+				this.setState({
+					selected_classes: data,
+				});
+				this.getTimetable(data);
+			};
 			return (
 				<div>
 					<div id="timetable_info">
-						<Search name="select_classes" data={this.props.classes.nodes} updateSelected={this.getTimetable} />
+						<Search name="select_classes" data={this.props.classes.nodes} updateSelected={updateSelected} />
 					</div>
 					<div id="timetable">
 						<table>
@@ -552,6 +446,28 @@ const timetableMoveDecoder = record({
 		}
 	}
 
+	const TimetableWithDate = (props: { classes: InputGraphType; date: Date }) => {
+		const [date, setDate] = useState(props.date);
+		const setNextWeek = () => {
+			const d = new Date(date);
+			d.setDate(d.getDate() + 7 - d.getDay());
+			setDate(d);
+		};
+		const setLastWeek = () => {
+			let d = new Date(date);
+			d.setDate(d.getDate() - 7);
+			if (d < props.date) d = new Date(props.date);
+			setDate(d);
+		};
+		return (
+			<div className="flex">
+				<div onClick={setLastWeek}>{"<"}</div>
+				<Timetable classes={props.classes} date={date} />
+				<div onClick={setNextWeek}>{">"}</div>
+			</div>
+		);
+	};
+
 	window.addEventListener("load", async function (e) {
 		// api.get_timetable();
 		const classes = await getClass();
@@ -561,6 +477,6 @@ const timetableMoveDecoder = record({
 			return;
 		}
 		const root = createRoot(container);
-		root.render(<Timetable classes={classes} date={new Date(2021, 4, 1)} />);
+		root.render(<TimetableWithDate classes={classes} date={new Date(2021, 3, 12)} />);
 	});
 })();

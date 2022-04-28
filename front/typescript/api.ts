@@ -5,9 +5,9 @@ export const server = {
 		const port = location.port;
 		console.log("http://localhost:" + port + "/api/" + path);
 		const res = await fetch("http://localhost:" + port + "/api/" + path);
-		if (res.status != 200) {
+		if (!res.ok) {
 			console.error(res);
-			return;
+			throw `response error, code: ${res.status}`;
 		}
 		return res.json();
 	},

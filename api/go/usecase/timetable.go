@@ -93,7 +93,7 @@ func ChangeTimetable(duration_id int, search_day time.Time, change_id int) ([]Ti
 		return nil, errors.ErrorWrap(err)
 	}
 
-	changes, _, err := Solver.TimetableChange(tt, *class, &change_unit, places, teachers, search_day, holidays)
+	changes, _, err := Solver.TimetableChange(tt, *class, &change_unit, places, teachers, search_day, holidays, 500)
 	if err != nil {
 		return nil, errors.ErrorWrap(err)
 	}
