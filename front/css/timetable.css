@@ -9,14 +9,6 @@ body {
 	height: 100%;
 }
 
-.timetable_info {
-	display: flex;
-	flex-wrap: wrap;
-}
-.timetable_info .unit {
-	margin: 0px 5px;
-}
-
 .hidden {
 	visibility: hidden;
 }
@@ -52,4 +44,17 @@ body {
 #timetable .unit .teacher {
 	height: 15px;
 	font-size: 10px;
+}
+.selected_classes{
+	display: flex;
+}
+.flex{
+	display: flex;
+}
+.plus_icon{
+	width: 20px;
+	height: 20px;
+	background: url("../images/icon_001510_256.png");
+	border-radius: 50%;
+    background-size: cover;
 }

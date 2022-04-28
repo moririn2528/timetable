@@ -3,9 +3,17 @@ package errors
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
+
+var root_path string
+
+func init() {
+	root_path, _ = os.Getwd()
+}
 
 type MyError struct {
 	message string
@@ -17,7 +25,8 @@ type MyError struct {
 func GetCaller(depth int) string {
 	pc, file, line, _ := runtime.Caller(depth)
 	f := runtime.FuncForPC(pc)
-	return fmt.Sprintf("%s:%d %s", file, line, f.Name())
+	rel_path, _ := filepath.Rel(root_path, file) // 相対パス
+	return fmt.Sprintf("%s:%d %s", filepath.ToSlash(rel_path), line, f.Name())
 }
 
 func NewError(msg ...interface{}) *MyError {

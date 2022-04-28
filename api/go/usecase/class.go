@@ -2,17 +2,25 @@ package usecase
 
 import (
 	"fmt"
+	"log"
 
 	"timetable/errors"
 	"timetable/library/bitset"
 )
 
+// 子のクラスの和集合が親クラスとなっているか判定するための要素
+type ClassFill struct {
+	Board int
+	Piece int
+}
+
 type ClassNode struct {
-	Id        int
-	Name      string
-	Available []bool
-	Child     []int
-	Parent    []int
+	Id         int
+	Name       string
+	Available  []bool
+	Child      []int
+	Parent     []int
+	ParentFill []ClassFill
 }
 
 type ClassGraph struct {
@@ -26,6 +34,8 @@ type ClassGraph struct {
 type ClassEdge struct {
 	FromId int
 	ToId   int
+	Board  int // -1 を許す。
+	Piece  int
 }
 
 func (graph *ClassGraph) Valid() bool {
@@ -59,53 +69,8 @@ func (graph *ClassGraph) Valid() bool {
 	return true
 }
 
-// func (graph *ClassGraph) reloadDescendants(idx int) error {
-// 	deg := make(map[int]int)
-// 	vec := []int{idx}
-// 	for len(vec) > 0 {
-// 		x := vec[len(vec)-1]
-// 		vec = vec[:len(vec)-1]
-// 		v, ok := deg[x]
-// 		if ok {
-// 			deg[x] = v + 1
-// 			continue
-// 		}
-// 		deg[x] = 1
-// 		vec = append(vec, graph.Nodes[x].Parent...)
-// 	}
-// 	vec = []int{idx}
-// 	used := make(map[int]struct{})
-// 	for len(vec) > 0 {
-// 		x := vec[len(vec)-1]
-// 		vec = vec[:len(vec)-1]
-// 		d, ok := deg[x]
-// 		if !ok {
-// 			return errors.NewError("internal error")
-// 		}
-// 		d--
-// 		deg[x] = d
-// 		if d > 0 {
-// 			continue
-// 		}
-// 		used[x] = struct{}{}
-// 		des := graph.descendants
-// 		des[x] = bitset.NewBitset(len(graph.Nodes))
-// 		for _, c := range graph.Nodes[x].Child {
-// 			des[x] = des[x].Or(des[c])
-// 		}
-// 		des[x].Set(x, true)
-// 		vec = append(vec, graph.Nodes[x].Parent...)
-// 	}
-// 	for key := range deg {
-// 		_, ok := used[key]
-// 		if !ok {
-// 			return errors.NewError("internal error, 変更すべきノードを変更できなかった")
-// 		}
-// 	}
-// 	return nil
-// }
-
 func (graph *ClassGraph) initDescendants() {
+	log.Print("test")
 	n := len(graph.Nodes)
 	vec := []int{}
 	deg := make([]int, n)
@@ -136,7 +101,7 @@ func (graph *ClassGraph) initDescendants() {
 // graph に辺を加える
 // 頂点は存在している必要
 // database には追加しない
-func (graph *ClassGraph) AddEdge(from_id int, to_id int) error {
+func (graph *ClassGraph) AddEdge(from_id int, to_id int, board_id int, peice_id int) error {
 	from, ok1 := graph.Id2index[from_id]
 	to, ok2 := graph.Id2index[to_id]
 	n := len(graph.Nodes)
@@ -151,6 +116,10 @@ func (graph *ClassGraph) AddEdge(from_id int, to_id int) error {
 	}
 	graph.Nodes[from].Child = append(graph.Nodes[from].Child, to)
 	graph.Nodes[to].Parent = append(graph.Nodes[to].Parent, from)
+	graph.Nodes[to].ParentFill = append(graph.Nodes[to].ParentFill, ClassFill{
+		Board: board_id,
+		Piece: peice_id,
+	})
 	return nil
 }
 
@@ -178,7 +147,7 @@ func (graph *ClassGraph) Append(nodes []ClassNode, edges []ClassEdge) error {
 		graph.Nodes = append(graph.Nodes, node)
 	}
 	for _, e := range edges {
-		if err := graph.AddEdge(e.FromId, e.ToId); err != nil {
+		if err := graph.AddEdge(e.FromId, e.ToId, e.Board, e.Piece); err != nil {
 			return errors.ErrorWrap(err)
 		}
 	}
@@ -233,13 +202,9 @@ func (graph *ClassGraph) Index2IdArray(node_idx []int) ([]int, error) {
 	return res, nil
 }
 
-func (graph *ClassGraph) GetDescendants(node_ids []int) ([]int, error) {
+func (graph *ClassGraph) GetDescendants(node_idxs []int) ([]int, error) {
 	b := bitset.NewBitset(len(graph.Nodes))
-	for _, id := range node_ids {
-		idx, ok := graph.Id2index[id]
-		if !ok {
-			return nil, errors.NewError("input id error")
-		}
+	for _, idx := range node_idxs {
 		b = b.Or(graph.descendants[idx])
 	}
 	var res []int
@@ -250,17 +215,34 @@ func (graph *ClassGraph) GetDescendants(node_ids []int) ([]int, error) {
 	}
 	return res, nil
 }
+func (graph *ClassGraph) GetAncestors(node_idxs []int) []int {
+	used := make([]bool, len(graph.Nodes))
+	vec := make([]int, len(node_idxs))
+	var res []int
+	copy(vec, node_idxs)
+	for len(vec) > 0 {
+		idx := vec[len(vec)-1]
+		vec = vec[:len(vec)-1]
+		if used[idx] {
+			continue
+		}
+		used[idx] = true
+		res = append(res, idx)
+		vec = append(vec, graph.Nodes[idx].Parent...)
+	}
+	return res
+}
 
 func (graph *ClassGraph) NodeIn(a int, b int) bool {
 	// a,b: index, b が a の子孫かどうか
 	return graph.descendants[a].Test(b)
 }
 
-func (graph *ClassGraph) NodeCross(a int, b int) bool {
-	// a,b: index, a の子孫と b の子孫が被っているかどうか
-	bt := graph.descendants[a].And(graph.descendants[b])
-	return bt.TestAll()
-}
+// func (graph *ClassGraph) NodeCross(a int, b int) bool {
+// 	// a,b: index, a の子孫と b の子孫が被っているかどうか
+// 	bt := graph.descendants[a].And(graph.descendants[b])
+// 	return bt.TestAll()
+// }
 
 func GetGraph() ([]ClassNode, []ClassEdge, error) {
 	var nodes []ClassNode

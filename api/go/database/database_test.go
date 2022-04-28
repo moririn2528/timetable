@@ -27,6 +27,9 @@ func TestClassGraph(t *testing.T) {
 		if !ok {
 			t.Fatal("edge id error")
 		}
+		if e.Board != -1 && (e.Board < 0 || e.Piece < 0 || 60 < e.Piece) {
+			t.Fatalf("edge error, %v", e)
+		}
 		edges = append(edges, ClassEdge{
 			From: f,
 			To:   to,
@@ -75,44 +78,6 @@ func TestClassGraph(t *testing.T) {
 			if !dfs(i) {
 				t.Errorf("class graph dag error, start index: %v", i)
 				break
-			}
-		}
-	}
-
-	// 推移できる辺がないかチェック
-	{
-		for i, e := range edges {
-			f := e.From
-			l := len(path[f])
-			if l == 0 {
-				t.Fatalf("internal error, edge: %v", edges_id[i])
-			}
-			// 1 辺削除
-			for i, v := range path[f] {
-				if v != e.To {
-					continue
-				}
-				path[f][i] = path[f][l-1]
-				path[f] = path[f][:l-1]
-			}
-			if len(path[f])+1 != l {
-				t.Fatalf("internal path error, edge: %v", edges_id[i])
-			}
-			used := make([]bool, n)
-			vec := []int{f}
-			for len(vec) > 0 {
-				l := len(vec)
-				x := vec[l-1]
-				vec = vec[:l-1]
-				if used[x] {
-					continue
-				}
-				used[x] = true
-				if x == e.To {
-					t.Errorf("too many edges, unnecessary edge: %v", edges_id[i])
-					break
-				}
-				vec = append(vec, path[x]...)
 			}
 		}
 	}

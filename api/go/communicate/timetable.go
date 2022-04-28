@@ -40,19 +40,8 @@ func getClassTimetable(w http.ResponseWriter, req *http.Request) error {
 			class_ids = append(class_ids, id)
 		}
 	}
-	graph, err := usecase.NewClassGraph()
-	if err != nil {
-		return errors.ErrorWrap(err)
-	}
-	class_ids_all, err := graph.GetDescendants(class_ids)
-	if err != nil {
-		return errors.ErrorWrap(err, http.StatusBadRequest)
-	}
-	duration_id, err := usecase.Db_any.GetDurationId(date)
-	if err != nil {
-		return errors.ErrorWrap(err)
-	}
-	timetable, err := usecase.Db_timetabale.GetTimetable(duration_id, class_ids_all, -1, date, date.AddDate(0, 0, 7))
+
+	timetable, err := usecase.GetTimetableByClass(class_ids, date)
 	if err != nil {
 		return errors.ErrorWrap(err)
 	}

@@ -1,0 +1,33 @@
+version: "3"
+services:
+    app:
+        build:
+            context: ../
+        container_name: app
+        environment:
+            - PORT
+            - SQL_DSN
+        tty: true # 永続化
+        ports:
+            - ${PORT}:${PORT}
+        volumes:
+            - type: bind
+              source: ./log/go.log
+              target: /api/go/1.log
+        depends_on:
+            - db
+
+    db:
+        build:
+            context: ../api/sql
+        container_name: db
+        environment:
+            - MYSQL_ROOT_PASSWORD
+            - MYSQL_DATABASE
+            - MYSQL_USER
+            - MYSQL_PASSWORD
+        restart: always
+        volumes:
+            - type: bind
+              source: ./log/sql-data
+              target: /var/lib/mysql

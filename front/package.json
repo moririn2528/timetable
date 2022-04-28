@@ -12,10 +12,19 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "ts-loader": "^9.2.7",
-    "typescript": "^4.6.2",
-    "webpack": "^5.70.0",
+    "@types/react": "^18.0.5",
+    "@types/react-dom": "^18.0.1",
+    "html-loader": "^3.1.0",
+    "ts-loader": "^9.2.8",
+    "typescript": "^4.6.3",
+    "webpack": "^5.72.0",
     "webpack-cli": "^4.9.2",
-    "webpack-dev-server": "^4.7.4"
+    "webpack-dev-server": "^4.8.1"
+  },
+  "dependencies": {
+    "html-webpack-plugin": "^5.5.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "typescript-json-decoder": "^1.0.6"
   }
 }
