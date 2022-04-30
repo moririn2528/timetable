@@ -489,6 +489,13 @@ func (*calcCost) BanReturn(
 	}
 }
 
+func (*calcCost) getAvoidCost(avoid int) int {
+	if avoid > 5 {
+		return INF
+	}
+	return avoid * 10
+}
+
 //idxs: 使えるコマの index
 func getCost(
 	units *[D][P][]int,
@@ -513,7 +520,7 @@ func getCost(
 			k, l := kl[0], kl[1]
 			cost[i][j][k][l] = 0
 			for _, u := range units[i][j] {
-				cost[i][j][k][l] += avoid[u][k][l]
+				cost[i][j][k][l] += cal.getAvoidCost(avoid[u][k][l])
 				pi := place_indexes[u]
 				place_count[k][l][pi]--
 				if place_count[k][l][pi] < 0 {
@@ -578,7 +585,7 @@ func getCostRelaxTeacher(
 			k, l := kl[0], kl[1]
 			cost[i][j][k][l] = 0
 			for _, u := range units[i][j] {
-				cost[i][j][k][l] += avoid[u][k][l]
+				cost[i][j][k][l] += cal.getAvoidCost(avoid[u][k][l])
 				pi := place_indexes[u]
 				place_count[k][l][pi]--
 				if place_count[k][l][pi] < 0 {

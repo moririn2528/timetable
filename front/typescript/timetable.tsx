@@ -306,6 +306,11 @@ const timetableMoveDecoder = record({
 			this.setUnits = this.setUnits.bind(this);
 		}
 
+		getDaystr(day: number) {
+			if (day == 0) return "日";
+			return this.day_weak_strs[day - 1];
+		}
+
 		printHeader() {
 			return (
 				<thead>
@@ -370,8 +375,8 @@ const timetableMoveDecoder = record({
 						const tim = d.timetable;
 						return (
 							<div key={d.timetable.id}>
-								クラス名: {tim.class_name}, 教科: {tim.subject_name}, 先生: {tim.teacher_name} 日時: {date2str(tim.day)} {tim.frame_period + 1} 限 変更日時: {date2str(d.day)}{" "}
-								{(d.frame_id % 7) + 1}限
+								クラス名: {tim.class_name}, 教科: {tim.subject_name}, 先生: {tim.teacher_name} 日時: {date2str(tim.day)}({this.getDaystr(tim.day.getDay())}) {tim.frame_period + 1} 限
+								変更日時: {date2str(d.day)}({this.getDaystr(d.day.getDay())}) {(d.frame_id % 7) + 1}限
 							</div>
 						);
 					})}
