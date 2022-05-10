@@ -44,6 +44,17 @@ func (h *Heap) Pop() interface{} {
 	return x
 }
 
+func isListCross(a []int, b []int) bool {
+	for _, i := range a {
+		for _, j := range b {
+			if i == j {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // index が timetable に対応した teacher の avoid を返す
 func NewTimetableAvoid(teacher []usecase.Teacher, table []usecase.Timetable, start_day time.Time) ([][][]int, error) {
 	// avoid[timetable index][day][period]
@@ -53,22 +64,25 @@ func NewTimetableAvoid(teacher []usecase.Teacher, table []usecase.Timetable, sta
 	}
 	avoid := make([][][]int, len(table))
 	for i := 0; i < len(table); i++ {
-		tid := table[i].TeacherId
-		idx, ok := id2index[tid]
-		if !ok {
-			return nil, errors.NewError("internal error, table index not found")
-		}
 		avoid[i] = make([][]int, D)
 		for j := 0; j < D; j++ {
 			avoid[i][j] = make([]int, P)
-			d := (start_day.Day() + j) % 7
-			if d == 0 {
-				continue
+		}
+		for _, tid := range table[i].TeacherIds {
+			idx, ok := id2index[tid]
+			if !ok {
+				return nil, errors.NewError("internal error, table index not found")
 			}
-			for k := 0; k < P; k++ {
-				wi := (d-1)*P + k
-				if wi < len(teacher[idx].Avoid) {
-					avoid[i][j][k] = teacher[idx].Avoid[wi]
+			for j := 0; j < D; j++ {
+				d := (start_day.Day() + j) % 7
+				if d == 0 {
+					continue
+				}
+				for k := 0; k < P; k++ {
+					wi := (d-1)*P + k
+					if wi < len(teacher[idx].Avoid) {
+						avoid[i][j][k] += teacher[idx].Avoid[wi]
+					}
 				}
 			}
 		}
@@ -429,31 +443,34 @@ func (*calcCost) getTeacherInval(
 	other_units *[D][P][]int,
 	tt_all []usecase.Timetable,
 	start_day time.Time,
-) ([]int, []bitset.Bitset) {
-	tids := make([]int, len(tt_all))
+) ([][]int, []bitset.Bitset) {
+	tids := make([][]int, len(tt_all)) // timetable index に対する teacher index の配列
 	teach_id2idx := make(map[int]int)
 	var tea_inval []bitset.Bitset // teacher is invalid or not
 	for i, t := range tt_all {
-		idx, ok := teach_id2idx[t.TeacherId]
-		if !ok {
-			idx = len(teach_id2idx)
-			teach_id2idx[t.TeacherId] = idx
-			tea_inval = append(tea_inval, bitset.NewBitset(D*P))
+		for _, id := range t.TeacherIds {
+			idx, ok := teach_id2idx[id]
+			if !ok {
+				idx = len(teach_id2idx)
+				teach_id2idx[id] = idx
+				tea_inval = append(tea_inval, bitset.NewBitset(D*P))
+			}
+			tids[i] = append(tids[i], idx)
 		}
-		tids[i] = idx
 	}
 	for i := 0; i < D; i++ {
 		for j := 0; j < P; j++ {
 			for _, u := range other_units[i][j] {
 				t := tt_all[u]
-				tid := tids[u]
 				d := int((t.Day.Sub(start_day)).Hours())
 				if d < 0 || D <= d/24 {
 					continue
 				}
 				d /= 24
 				p := t.FramePeriod
-				tea_inval[tid].Set(d*P+p, true)
+				for _, tid := range tids[u] {
+					tea_inval[tid].Set(d*P+p, true)
+				}
 			}
 		}
 	}
@@ -474,7 +491,7 @@ func (*calcCost) BanReturn(
 		for j := 0; j < P; j++ {
 			for _, u := range units[i][j] {
 				t := tt_all[u]
-				if t.TeacherId != change_unit.TeacherId {
+				if !isListCross(t.TeacherIds, change_unit.TeacherIds) {
 					continue
 				}
 				d := int((t.Day.Sub(start_day)).Hours())
@@ -528,9 +545,10 @@ func getCost(
 				}
 
 				//先生がそのコマに入れるかどうか
-				tea_id := tids[u] // teacher id
-				if tea_inval[tea_id].Test(k*P + l) {
-					cost[i][j][k][l] = INF
+				for _, tea_id := range tids[u] { // teacher id
+					if tea_inval[tea_id].Test(k*P + l) {
+						cost[i][j][k][l] = INF
+					}
 				}
 			}
 			for _, u := range units[i][j] {
@@ -593,9 +611,10 @@ func getCostRelaxTeacher(
 				}
 
 				//先生がそのコマに入れるかどうか
-				tea_id := tids[u] // teacher id
-				if tea_inval[tea_id].Test(k*P + l) {
-					cost[i][j][k][l] += cost_teach_inval
+				for _, tea_id := range tids[u] {
+					if tea_inval[tea_id].Test(k*P + l) {
+						cost[i][j][k][l] += cost_teach_inval
+					}
 				}
 			}
 			for _, u := range units[i][j] {
@@ -609,6 +628,7 @@ func getCostRelaxTeacher(
 	return cost
 }
 
+// 	others で、動かしたとき教師が被っているを列挙する
 func getTeacherInval(units *[D][P][]int, others *[D][P][]int, tt_all []usecase.Timetable, move [][2]int) []usecase.Timetable {
 	var res []usecase.Timetable
 	for i := 0; i < len(move); i++ {
@@ -617,7 +637,7 @@ func getTeacherInval(units *[D][P][]int, others *[D][P][]int, tt_all []usecase.T
 		ti, tj := move[ni][0], move[ni][1]
 		for _, u := range units[vi][vj] {
 			for _, bs := range others[ti][tj] {
-				if tt_all[u].TeacherId == tt_all[bs].TeacherId {
+				if isListCross(tt_all[u].TeacherIds, tt_all[bs].TeacherIds) {
 					res = append(res, tt_all[bs])
 				}
 			}
@@ -822,7 +842,7 @@ func (*SolverClass) TimetableChange(
 			ApplyChange(tt_all, tm)
 		}
 		for _, t := range tt_all {
-			if t.TeacherId == bef_unit.TeacherId && t.Day.Equal(bef_unit.Day) && t.FrameId == bef_unit.FrameId {
+			if isListCross(t.TeacherIds, bef_unit.TeacherIds) && t.Day.Equal(bef_unit.Day) && t.FrameId == bef_unit.FrameId {
 				// 元々のコマに動かす必要のある先生のコマ存在
 				tm, c, err := sc.TimetableChange(tt_all, graph, &t, places, teachers, start_day, holidays, -1)
 				if err != nil || c >= INF {

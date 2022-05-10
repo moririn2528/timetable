@@ -124,6 +124,7 @@ func ChangeTimetableHandle(w http.ResponseWriter, req *http.Request) {
 		err = getChangeTimetable(w, req)
 	default:
 		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("test"))
 		return
 	}
 	if err == nil {

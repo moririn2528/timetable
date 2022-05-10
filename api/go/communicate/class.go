@@ -21,6 +21,7 @@ func ResponseJson(w http.ResponseWriter, v interface{}) error {
 	if err != nil {
 		return errors.ErrorWrap(err)
 	}
+	w.Header().Set("Content-type", "application/json;charset=utf-8")
 	_, err = io.WriteString(w, buf.String())
 	if err != nil {
 		return errors.ErrorWrap(err)

@@ -6,19 +6,19 @@ import (
 )
 
 type NormalTimetable struct {
-	Id           int    `json:"id"`
-	ClassId      int    `json:"class_id"`
-	ClassName    string `json:"class_name"`
-	DurationId   int    `json:"duration_id"`
-	DurationName string `json:"duration_name"`
-	FrameId      int    `json:"frame_id"`
-	FrameDayWeek int    `json:"frame_day_week"`
-	FramePeriod  int    `json:"frame_period"`
-	SubjectId    int    `json:"subject_id"`
-	SubjectName  string `json:"subject_name"`
-	TeacherId    int    `json:"teacher_id"`
-	TeacherName  string `json:"teacher_name"`
-	PlaceId      int    `json:"place_id"`
+	Id           int      `json:"id"`
+	ClassId      int      `json:"class_id"`
+	ClassName    string   `json:"class_name"`
+	DurationId   int      `json:"duration_id"`
+	DurationName string   `json:"duration_name"`
+	FrameId      int      `json:"frame_id"`
+	FrameDayWeek int      `json:"frame_day_week"`
+	FramePeriod  int      `json:"frame_period"`
+	SubjectId    int      `json:"subject_id"`
+	SubjectName  string   `json:"subject_name"`
+	TeacherIds   []int    `json:"teacher_id"`
+	TeacherNames []string `json:"teacher_name"`
+	PlaceId      int      `json:"place_id"`
 }
 
 type Timetable struct {

@@ -19,8 +19,8 @@ const timetableDecoder = record({
 	frame_period: number,
 	subject_id: number,
 	subject_name: string,
-	teacher_id: number,
-	teacher_name: string,
+	teacher_id: array(number),
+	teacher_name: array(string),
 	place_id: number,
 	day: jsdate,
 });
@@ -375,8 +375,8 @@ const timetableMoveDecoder = record({
 						const tim = d.timetable;
 						return (
 							<div key={d.timetable.id}>
-								クラス名: {tim.class_name}, 教科: {tim.subject_name}, 先生: {tim.teacher_name} 日時: {date2str(tim.day)}({this.getDaystr(tim.day.getDay())}) {tim.frame_period + 1} 限
-								変更日時: {date2str(d.day)}({this.getDaystr(d.day.getDay())}) {(d.frame_id % 7) + 1}限
+								クラス名: {tim.class_name}, 教科: {tim.subject_name}, 先生: {tim.teacher_name.join(",")} 日時: {date2str(tim.day)}({this.getDaystr(tim.day.getDay())}){" "}
+								{tim.frame_period + 1} 限 変更日時: {date2str(d.day)}({this.getDaystr(d.day.getDay())}) {(d.frame_id % 7) + 1}限
 							</div>
 						);
 					})}

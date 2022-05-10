@@ -39,7 +39,6 @@ func init() {
 func main() {
 	defer database.Close()
 
-	database.SetFrames()
 	usecase.Db_any = &database.DatabaseAny{}
 	usecase.Db_class = &database.DatabaseClass{}
 	usecase.Db_timetabale = &database.DatabaseTimetable{}
