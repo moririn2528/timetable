@@ -48,8 +48,10 @@ func main() {
 
 	http.Handle("/", http.FileServer(http.Dir("../../front")))
 	http.HandleFunc("/api/timetable/class", communicate.ClassTimetableHandle)
+	http.HandleFunc("/api/timetable/teacher", communicate.TeacherTimetableHandle)
 	http.HandleFunc("/api/timetable/change", communicate.ChangeTimetableHandle)
 	http.HandleFunc("/api/class", communicate.Class_structure)
+	http.HandleFunc("/api/teacher/avoid", communicate.TeacherAvoidHandle)
 	log.Print("start")
 	port, ok := os.LookupEnv("PORT")
 	if !ok {

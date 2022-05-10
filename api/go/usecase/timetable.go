@@ -58,6 +58,18 @@ func GetTimetableByClass(class_ids []int, date time.Time) ([]Timetable, error) {
 	return timetable, nil
 }
 
+func GetTimetableByTeacher(teacher_id int, date time.Time) ([]Timetable, error) {
+	duration_id, err := Db_any.GetDurationId(date)
+	if err != nil {
+		return nil, errors.ErrorWrap(err)
+	}
+	timetable, err := Db_timetabale.GetTimetable(duration_id, []int{}, teacher_id, date, date.AddDate(0, 0, 7))
+	if err != nil {
+		return nil, errors.ErrorWrap(err)
+	}
+	return timetable, nil
+}
+
 func ChangeTimetable(duration_id int, search_day time.Time, change_id int) ([]TimetableMove, error) {
 	tt, err := Db_timetabale.GetTimetable(
 		duration_id, []int{}, -1, search_day, search_day.AddDate(0, 0, COUNT_DAY),
