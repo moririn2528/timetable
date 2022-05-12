@@ -20,8 +20,12 @@ func init() {
 		// execute in local
 		file, err := os.Open("database/dsn.secret")
 		if err != nil {
-			log.Printf("dsn file open error, %v", err)
-			return
+			log.Printf("dsn file open warning, %v", err)
+			file, err = os.Open("dsn.secret")
+			if err != nil {
+				log.Printf("dsn file open error, %v", err)
+				return
+			}
 		}
 		buf := make([]byte, 1024)
 		n, err := file.Read(buf)

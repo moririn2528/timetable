@@ -15,6 +15,7 @@ type Teacher struct {
 func (t *Teacher) parse() (*usecase.Teacher, error) {
 	s := &usecase.Teacher{
 		Id:    t.Id,
+		Name:  t.Name,
 		Avoid: make([]int, len(t.Avoid)),
 	}
 	var err error

@@ -47,6 +47,4 @@ var (
 	Db_timetabale DatabaseTimetable
 	Db_any        DatabaseAny
 	Solver        SolverClass
-
-	Frames map[int]Frame
 )

@@ -1,6 +1,9 @@
 package database
 
-import "testing"
+import (
+	"testing"
+	"timetable/usecase"
+)
 
 /// データベース上のデータが想定される仮定を満たすかチェックする
 
@@ -34,10 +37,6 @@ func TestClassGraph(t *testing.T) {
 			From: f,
 			To:   to,
 		})
-	}
-	periods, err := getFrames()
-	if err != nil {
-		t.Fatal(err)
 	}
 	n := len(nodes)
 
@@ -85,8 +84,8 @@ func TestClassGraph(t *testing.T) {
 	// available チェック
 	{
 		for i := 0; i < n; i++ {
-			if len(nodes[i].Available) != len(periods) {
-				t.Errorf("class available len error, len: %v, len(peroid): %v, class idx: %v", len(nodes[i].Available), len(periods), i)
+			if len(nodes[i].Available) != usecase.FRAME_NUM {
+				t.Errorf("class available len error, len: %v, len(peroid): %v, class idx: %v", len(nodes[i].Available), usecase.FRAME_NUM, i)
 			}
 		}
 		for k, e := range edges {
@@ -111,13 +110,9 @@ func TestTeacher(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	periods, err := getFrames()
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, edu := range teachers {
-		if len(edu.Avoid) != len(periods) {
-			t.Errorf("teacher avoid length error, len(t.Avoid): %v, len(periods): %v", len(edu.Avoid), len(periods))
+		if len(edu.Avoid) != usecase.FRAME_NUM {
+			t.Errorf("teacher avoid length error, len(t.Avoid): %v, len(periods): %v", len(edu.Avoid), usecase.FRAME_NUM)
 		}
 	}
 }
@@ -131,6 +126,16 @@ func TestTimetable(t *testing.T) {
 	for _, c := range classes {
 		class_map[c.Id] = c
 	}
+	var db DatabaseAny
+	teachers, err := db.GetTeacher()
+	if err != nil {
+		t.Fatal(err)
+	}
+	teacher_map := make(map[int]usecase.Teacher)
+	for _, t := range teachers {
+		teacher_map[t.Id] = t
+	}
+
 	var dt DatabaseTimetable
 	normal_table, err := dt.GetNomalTimetable(-1, []int{}, -1)
 	if err != nil {
@@ -145,6 +150,17 @@ func TestTimetable(t *testing.T) {
 		f := tab.FrameId
 		if c.Available[f] == '0' {
 			t.Errorf("class available error,class: %v, timetable: %v", c, tab)
+		}
+		for _, id := range tab.TeacherIds {
+			teach, ok := teacher_map[id]
+			if !ok {
+				t.Errorf("teacher id not found, teacher: %v, normal timetable: %v", teach, tab)
+				continue
+			}
+			if teach.Avoid[tab.FrameId] >= 7 {
+				t.Errorf("teacher avoid error, teacher: %v, normal timetable: %v", teach, tab)
+				continue
+			}
 		}
 	}
 }

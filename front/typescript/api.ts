@@ -14,6 +14,10 @@ export const server = {
 };
 export const sleep = (waitTime: number) => new Promise((resolve) => setTimeout(resolve, waitTime));
 
+export const jsdate = function (val: any) {
+	return new Date(string(val));
+};
+
 export type InputGraphType = decodeType<typeof inputGraphDecoder>;
 const inputGraphDecoder = record({
 	nodes: array({ id: number, name: string }),

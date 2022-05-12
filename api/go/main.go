@@ -39,7 +39,6 @@ func init() {
 func main() {
 	defer database.Close()
 
-	database.SetFrames()
 	usecase.Db_any = &database.DatabaseAny{}
 	usecase.Db_class = &database.DatabaseClass{}
 	usecase.Db_timetabale = &database.DatabaseTimetable{}
@@ -49,8 +48,11 @@ func main() {
 
 	http.Handle("/", http.FileServer(http.Dir("../../front")))
 	http.HandleFunc("/api/timetable/class", communicate.ClassTimetableHandle)
+	http.HandleFunc("/api/timetable/teacher", communicate.TeacherTimetableHandle)
 	http.HandleFunc("/api/timetable/change", communicate.ChangeTimetableHandle)
 	http.HandleFunc("/api/class", communicate.Class_structure)
+	http.HandleFunc("/api/teacher/avoid", communicate.TeacherAvoidHandle)
+	http.HandleFunc("/api/teacher", communicate.TeacherHandle)
 	log.Print("start")
 	port, ok := os.LookupEnv("PORT")
 	if !ok {

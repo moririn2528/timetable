@@ -6,19 +6,19 @@ import (
 )
 
 type NormalTimetable struct {
-	Id           int    `json:"id"`
-	ClassId      int    `json:"class_id"`
-	ClassName    string `json:"class_name"`
-	DurationId   int    `json:"duration_id"`
-	DurationName string `json:"duration_name"`
-	FrameId      int    `json:"frame_id"`
-	FrameDayWeek int    `json:"frame_day_week"`
-	FramePeriod  int    `json:"frame_period"`
-	SubjectId    int    `json:"subject_id"`
-	SubjectName  string `json:"subject_name"`
-	TeacherId    int    `json:"teacher_id"`
-	TeacherName  string `json:"teacher_name"`
-	PlaceId      int    `json:"place_id"`
+	Id           int      `json:"id"`
+	ClassId      int      `json:"class_id"`
+	ClassName    string   `json:"class_name"`
+	DurationId   int      `json:"duration_id"`
+	DurationName string   `json:"duration_name"`
+	FrameId      int      `json:"frame_id"`
+	FrameDayWeek int      `json:"frame_day_week"`
+	FramePeriod  int      `json:"frame_period"`
+	SubjectId    int      `json:"subject_id"`
+	SubjectName  string   `json:"subject_name"`
+	TeacherIds   []int    `json:"teacher_id"`
+	TeacherNames []string `json:"teacher_name"`
+	PlaceId      int      `json:"place_id"`
 }
 
 type Timetable struct {
@@ -52,6 +52,18 @@ func GetTimetableByClass(class_ids []int, date time.Time) ([]Timetable, error) {
 		return nil, errors.ErrorWrap(err)
 	}
 	timetable, err := Db_timetabale.GetTimetable(duration_id, class_ids_all, -1, date, date.AddDate(0, 0, 7))
+	if err != nil {
+		return nil, errors.ErrorWrap(err)
+	}
+	return timetable, nil
+}
+
+func GetTimetableByTeacher(teacher_id int, date time.Time) ([]Timetable, error) {
+	duration_id, err := Db_any.GetDurationId(date)
+	if err != nil {
+		return nil, errors.ErrorWrap(err)
+	}
+	timetable, err := Db_timetabale.GetTimetable(duration_id, []int{}, teacher_id, date, date.AddDate(0, 0, 7))
 	if err != nil {
 		return nil, errors.ErrorWrap(err)
 	}
