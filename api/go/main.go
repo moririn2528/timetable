@@ -52,6 +52,7 @@ func main() {
 	http.HandleFunc("/api/timetable/change", communicate.ChangeTimetableHandle)
 	http.HandleFunc("/api/class", communicate.Class_structure)
 	http.HandleFunc("/api/teacher/avoid", communicate.TeacherAvoidHandle)
+	http.HandleFunc("/api/teacher", communicate.TeacherHandle)
 	log.Print("start")
 	port, ok := os.LookupEnv("PORT")
 	if !ok {

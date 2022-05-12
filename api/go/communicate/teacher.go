@@ -46,11 +46,64 @@ func getTeacherAvoid(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
+func getTeacher(w http.ResponseWriter, req *http.Request) error {
+	type Teacher struct {
+		Id   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	var err error
+	err = req.ParseForm()
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
+	teacher_use, err := usecase.Db_any.GetTeacher()
+	var teachers []Teacher
+	for _, t := range teacher_use {
+		teachers = append(teachers, Teacher{
+			Id:   t.Id,
+			Name: t.Name,
+		})
+	}
+
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
+
+	// to json
+	err = ResponseJson(w, teachers)
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
+	return nil
+}
+
 func TeacherAvoidHandle(w http.ResponseWriter, req *http.Request) {
 	var err error
 	switch req.Method {
 	case "GET":
 		err = getTeacherAvoid(w, req)
+	default:
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	if err == nil {
+		return
+	}
+	my_err, ok := err.(*errors.MyError)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Print("wrap error")
+		return
+	}
+	w.WriteHeader(my_err.GetCode())
+	log.Print(my_err.Error())
+}
+
+func TeacherHandle(w http.ResponseWriter, req *http.Request) {
+	var err error
+	switch req.Method {
+	case "GET":
+		err = getTeacher(w, req)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		return

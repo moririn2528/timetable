@@ -1,0 +1,4 @@
+#timetable .unit td {
+	border: 1px dotted #333;
+	background-color: rgba(0, 0, 0, 0);
+}

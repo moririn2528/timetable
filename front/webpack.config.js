@@ -4,7 +4,8 @@ module.exports = {
 	// 指定できる値としては、ファイル名の文字列や、それを並べた配列やオブジェクト
 	// 下記はオブジェクトとして指定した例
 	entry: {
-		timetable: "./typescript/timetable.tsx",
+		timetable_class: "./typescript/timetable_class.tsx",
+		timetable_teacher: "./typescript/timetable_teacher.tsx",
 		class: "./typescript/class.tsx",
 	},
 	output: {
