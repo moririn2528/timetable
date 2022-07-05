@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	INF  int = 1e9 + 7
-	D, P int = usecase.COUNT_DAY, usecase.PERIOD
+	INF       int = 1e9 + 7
+	D, P      int = usecase.COUNT_DAY, usecase.PERIOD
+	BAN_AVOID int = 10 // 先生が絶対に入れてはいけないコマの avoid
 )
 
 var (
@@ -53,41 +54,6 @@ func isListCross(a []int, b []int) bool {
 		}
 	}
 	return false
-}
-
-// index が timetable に対応した teacher の avoid を返す
-func NewTimetableAvoid(teacher []usecase.Teacher, table []usecase.Timetable, start_day time.Time) ([][][]int, error) {
-	// avoid[timetable index][day][period]
-	id2index := make(map[int]int, len(teacher))
-	for i, t := range teacher {
-		id2index[t.Id] = i
-	}
-	avoid := make([][][]int, len(table))
-	for i := 0; i < len(table); i++ {
-		avoid[i] = make([][]int, D)
-		for j := 0; j < D; j++ {
-			avoid[i][j] = make([]int, P)
-		}
-		for _, tid := range table[i].TeacherIds {
-			idx, ok := id2index[tid]
-			if !ok {
-				return nil, errors.NewError("internal error, table index not found")
-			}
-			for j := 0; j < D; j++ {
-				d := (start_day.Day() + j) % 7
-				if d == 0 {
-					continue
-				}
-				for k := 0; k < P; k++ {
-					wi := (d-1)*P + k
-					if wi < len(teacher[idx].Avoid) {
-						avoid[i][j][k] += teacher[idx].Avoid[wi]
-					}
-				}
-			}
-		}
-	}
-	return avoid, nil
 }
 
 // NewPlaceIndexes: index が timetable に対応した place の index の配列を返す
@@ -162,7 +128,6 @@ func timetableChangeSolver(cost [][][][]int, start [2]int, units *[D][P][]int) (
 	for h.Len() > 0 {
 		mc := heap.Pop(h).([IDX + 1]int)
 		c, x, y, z := mc[0], mc[1], mc[2], mc[3]
-		log.Println("in dp", x, y, y, z)
 		if s <= c {
 			break
 		}
@@ -198,8 +163,6 @@ func timetableChangeSolver(cost [][][][]int, start [2]int, units *[D][P][]int) (
 	if ez == 0 {
 		return nil, ERR_CANT_SOLVE
 	}
-	//log.Println("dp", dp)
-	//log.Println("bef", bef)
 	var res [][2]int
 	for i := 0; i < K && ez > 0; i++ {
 		b := bef[ex][ey][ez]
@@ -237,7 +200,7 @@ func ableCompressTimetable(
 			continue
 		}
 		d /= 24
-		idx := d*P + t.FramePeriod
+		idx := d*P + t.FrameId%P
 		classes[idx] = append(classes[idx], cls)
 	}
 	ful := make([][]int, n)
@@ -347,7 +310,7 @@ func compressTimetable(
 			continue
 		}
 		d /= 24
-		p := t.FramePeriod
+		p := t.FrameId % P
 		c := graph.Id2index[t.ClassId]
 		if !flag[d][p] && in_class[c] {
 			units[d][p] = append(units[d][p], i)
@@ -399,7 +362,7 @@ func compressTimetable(
 type calcCost struct {
 }
 
-func (*calcCost) initCost() [][][][]int {
+func (*calcCost) initCost(init_val int) [][][][]int {
 	// init cost
 	cost := make([][][][]int, D)
 	for i := 0; i < D; i++ {
@@ -409,7 +372,7 @@ func (*calcCost) initCost() [][][][]int {
 			for k := 0; k < D; k++ {
 				cost[i][j][k] = make([]int, P)
 				for l := 0; l < P; l++ {
-					cost[i][j][k][l] = INF
+					cost[i][j][k][l] = init_val
 				}
 			}
 		}
@@ -467,7 +430,7 @@ func (*calcCost) getTeacherInval(
 					continue
 				}
 				d /= 24
-				p := t.FramePeriod
+				p := t.FrameId % P
 				for _, tid := range tids[u] {
 					tea_inval[tid].Set(d*P+p, true)
 				}
@@ -477,40 +440,95 @@ func (*calcCost) getTeacherInval(
 	return tids, tea_inval
 }
 
-// 同じ先生のコマが戻らないように
-func (*calcCost) BanReturn(
-	cost [][][][]int,
-	start_idx [2]int,
-	units *[D][P][]int,
-	tt_all []usecase.Timetable,
-	start_day time.Time,
-	change_unit *usecase.Timetable,
-) {
-	si, sj := start_idx[0], start_idx[1]
-	for i := 0; i < D; i++ {
-		for j := 0; j < P; j++ {
-			for _, u := range units[i][j] {
-				t := tt_all[u]
-				if !isListCross(t.TeacherIds, change_unit.TeacherIds) {
-					continue
+func (*calcCost) regulizeCost(cost [][][][]int) {
+	for i := 0; i < len(cost); i++ {
+		for j := 0; j < len(cost[i]); j++ {
+			for k := 0; k < len(cost[i][j]); k++ {
+				for a := 0; a < len(cost[i][j][k]); a++ {
+					if INF < cost[i][j][k][a] {
+						cost[i][j][k][a] = INF
+					}
 				}
-				d := int((t.Day.Sub(start_day)).Hours())
-				if d < 0 || D <= d/24 {
-					continue
-				}
-				d /= 24
-				p := t.FramePeriod
-				cost[d][p][si][sj] = INF
 			}
 		}
 	}
 }
 
-func (*calcCost) getAvoidCost(avoid int) int {
-	if avoid > 5 {
-		return INF
+// 同じ先生のコマが戻らないように
+// func (*calcCost) BanReturn(
+// 	cost [][][][]int,
+// 	start_idx [2]int,
+// 	units *[D][P][]int,
+// 	tt_all []usecase.Timetable,
+// 	start_day time.Time,
+// 	change_unit *usecase.Timetable,
+// ) {
+// 	si, sj := start_idx[0], start_idx[1]
+// 	for i := 0; i < D; i++ {
+// 		for j := 0; j < P; j++ {
+// 			for _, u := range units[i][j] {
+// 				t := tt_all[u]
+// 				if !isListCross(t.TeacherIds, change_unit.TeacherIds) {
+// 					continue
+// 				}
+// 				d := int((t.Day.Sub(start_day)).Hours())
+// 				if d < 0 || D <= d/24 {
+// 					continue
+// 				}
+// 				d /= 24
+// 				p := t.FramePeriod
+// 				cost[d][p][si][sj] = INF
+// 			}
+// 		}
+// 	}
+// }
+
+// index が timetable に対応した teacher の avoid を返す
+func getAvoidCost(
+	units *[D][P][]int, teacher []usecase.Teacher, table []usecase.Timetable, start_day time.Time,
+) ([][][][]int, error) {
+	// avoid[day][period][day][period]
+	avoid2cost := func(av int) int {
+		if av >= 7 {
+			return INF
+		}
+		return av * 10
 	}
-	return avoid * 10
+
+	id2index := make(map[int]int, len(teacher))
+	for i, t := range teacher {
+		id2index[t.Id] = i
+	}
+	var cal calcCost
+	avoid := cal.initCost(0)
+	for a := 0; a < D; a++ {
+		for b := 0; b < P; b++ {
+			for _, u := range units[a][b] {
+				for _, tid := range table[u].TeacherIds {
+					idx, ok := id2index[tid]
+					if !ok {
+						return nil, errors.NewError("internal error, table index not found")
+					}
+					for j := 0; j < D; j++ {
+						d := (int(start_day.Weekday()) + j) % 7
+						if d == 0 {
+							continue
+						}
+						for k := 0; k < P; k++ {
+							wi := (d-1)*P + k
+							if len(teacher[idx].Avoid) <= wi {
+								continue
+							}
+							avoid[a][b][j][k] += avoid2cost(teacher[idx].Avoid[wi])
+						}
+					}
+				}
+			}
+		}
+	}
+	cal.regulizeCost(avoid)
+	log.Println("testB", start_day)
+	return avoid, nil
 }
 
 //idxs: 使えるコマの index
@@ -518,26 +536,44 @@ func getCost(
 	units *[D][P][]int,
 	other_units *[D][P][]int,
 	idxs [][2]int,
-	avoid [][][]int,
+	avoid [][][][]int,
 	place_indexes []int,
 	places []usecase.Place,
 	start_idx [2]int,
 	tt_all []usecase.Timetable,
 	start_day time.Time,
 	change_unit *usecase.Timetable,
+	ban_units_idx [][2]int,
+	cost_teach_inval int, // INF
 ) [][][][]int {
 	var cal calcCost
-	cost := cal.initCost()
+	cost := cal.initCost(INF)
 	place_count := cal.getPlaceCount(other_units, place_indexes, places)
 	tids, tea_inval := cal.getTeacherInval(other_units, tt_all, start_day)
+	in := func(a int, l []int) bool {
+		for _, b := range l {
+			if a == b {
+				return true
+			}
+		}
+		return false
+	}
+	in_units := func(a [2]int, l [][2]int) bool {
+		for _, b := range l {
+			if a == b {
+				return true
+			}
+		}
+		return false
+	}
 	//define cost
-	for _, ij := range idxs {
+	for tid, ij := range idxs {
 		i, j := ij[0], ij[1]
 		for _, kl := range idxs {
 			k, l := kl[0], kl[1]
 			cost[i][j][k][l] = 0
 			for _, u := range units[i][j] {
-				cost[i][j][k][l] += cal.getAvoidCost(avoid[u][k][l])
+				cost[i][j][k][l] += avoid[i][j][k][l]
 				pi := place_indexes[u]
 				place_count[k][l][pi]--
 				if place_count[k][l][pi] < 0 {
@@ -547,8 +583,13 @@ func getCost(
 				//先生がそのコマに入れるかどうか
 				for _, tea_id := range tids[u] { // teacher id
 					if tea_inval[tea_id].Test(k*P + l) {
-						cost[i][j][k][l] = INF
+						cost[i][j][k][l] += cost_teach_inval
 					}
+				}
+
+				// 元に戻らないように
+				if in(tid, change_unit.TeacherIds) && in_units([2]int{k, l}, ban_units_idx) {
+					cost[i][j][k][l] = INF
 				}
 			}
 			for _, u := range units[i][j] {
@@ -557,8 +598,8 @@ func getCost(
 			}
 		}
 	}
-
-	cal.BanReturn(cost, start_idx, units, tt_all, start_day, change_unit)
+	cal.regulizeCost(cost)
+	//cal.BanReturn(cost, start_idx, units, tt_all, start_day, change_unit)
 	return cost
 }
 
@@ -574,57 +615,6 @@ func getFinalCost(
 		cost += first_cost[v[0]][v[1]][to[0]][to[1]]
 	}
 	cost += len(mv) * 1000
-	return cost
-}
-
-// コマに対して同じ先生が重複してもよいとする。コストには反映
-// cost_teach_inval: 先生が重複することに対するコスト
-func getCostRelaxTeacher(
-	units *[D][P][]int,
-	other_units *[D][P][]int,
-	idxs [][2]int,
-	avoid [][][]int,
-	place_indexes []int,
-	places []usecase.Place,
-	start_idx [2]int,
-	tt_all []usecase.Timetable,
-	start_day time.Time,
-	cost_teach_inval int,
-	change_unit *usecase.Timetable,
-) [][][][]int {
-	var cal calcCost
-	cost := cal.initCost()
-	place_count := cal.getPlaceCount(other_units, place_indexes, places)
-	tids, tea_inval := cal.getTeacherInval(other_units, tt_all, start_day)
-	//define cost
-	for _, ij := range idxs {
-		i, j := ij[0], ij[1]
-		for _, kl := range idxs {
-			k, l := kl[0], kl[1]
-			cost[i][j][k][l] = 0
-			for _, u := range units[i][j] {
-				cost[i][j][k][l] += cal.getAvoidCost(avoid[u][k][l])
-				pi := place_indexes[u]
-				place_count[k][l][pi]--
-				if place_count[k][l][pi] < 0 {
-					cost[i][j][k][l] = INF
-				}
-
-				//先生がそのコマに入れるかどうか
-				for _, tea_id := range tids[u] {
-					if tea_inval[tea_id].Test(k*P + l) {
-						cost[i][j][k][l] += cost_teach_inval
-					}
-				}
-			}
-			for _, u := range units[i][j] {
-				pi := place_indexes[u]
-				place_count[k][l][pi]++
-			}
-		}
-	}
-
-	cal.BanReturn(cost, start_idx, units, tt_all, start_day, change_unit)
 	return cost
 }
 
@@ -659,8 +649,6 @@ func ApplyChange(tt_all []usecase.Timetable, move []usecase.TimetableMove) {
 		mv := move[idx]
 		tt_all[i].Day = mv.Day
 		tt_all[i].FrameId = mv.FrameId
-		tt_all[i].FrameDayWeek = mv.FrameId / P
-		tt_all[i].FramePeriod = mv.FrameId % P
 	}
 }
 func CancelChange(tt_all []usecase.Timetable, move []usecase.TimetableMove) {
@@ -676,42 +664,41 @@ func CancelChange(tt_all []usecase.Timetable, move []usecase.TimetableMove) {
 		mv := move[idx].Unit
 		tt_all[i].Day = mv.Day
 		tt_all[i].FrameId = mv.FrameId
-		tt_all[i].FrameDayWeek = mv.FrameDayWeek
-		tt_all[i].FramePeriod = mv.FramePeriod
 	}
 }
-func AppendMove(mv []usecase.TimetableMove, plus []usecase.TimetableMove) error {
+func AppendMove(mv []usecase.TimetableMove, plus []usecase.TimetableMove) ([]usecase.TimetableMove, error) {
+	var move, res []usecase.TimetableMove
+	move = append(move, mv...)
 	for _, v := range plus {
-		flag := false
+		flag := false // v を反映したかどうか
 		for _, t := range mv {
 			if v.Unit.Id == t.Unit.Id {
 				if t.Day != v.Unit.Day || t.FrameId != v.Unit.FrameId {
-					return errors.NewError(fmt.Sprintf("append error, from: %v,to: %v", t, v))
+					return nil, errors.NewError(fmt.Sprintf("append error, from: %v,to: %v", t, v))
 				}
 				t.Day = v.Day
 				t.FrameId = v.FrameId
 				flag = true
 				break
 			}
-			if !flag {
-				mv = append(mv, v)
-			}
+		}
+		if !flag {
+			move = append(move, v)
 		}
 	}
-	return nil
+	for _, v := range move {
+		if !(v.Day == v.Unit.Day && v.FrameId == v.Unit.FrameId) {
+			res = append(res, v)
+		}
+	}
+	return res, nil
 }
 
-type SolverClass struct {
-}
-
-// 時間割変更
-// args:
-// teacher_relax: -1: 緩和しない。0 以上で cost に対応
-// return move, cost, error
-func (*SolverClass) TimetableChange(
+func ChangeUnit(
 	tt_all []usecase.Timetable,
 	graph usecase.ClassGraph,
 	change_unit *usecase.Timetable,
+	ban_units []usecase.BanUnit,
 	places []usecase.Place,
 	teachers []usecase.Teacher,
 	start_day time.Time,
@@ -719,6 +706,16 @@ func (*SolverClass) TimetableChange(
 	teacher_relax int,
 ) ([]usecase.TimetableMove, int, error) {
 	cost_inf := math.MaxInt
+	change_unit_idx := [2]int{
+		int(change_unit.Day.Sub(start_day).Hours()) / 24, change_unit.FrameId % P,
+	}
+	log.Println("testsdfa", change_unit_idx, change_unit)
+	var ban_units_idx [][2]int
+	for _, b := range ban_units {
+		ban_units_idx = append(ban_units_idx, [2]int{
+			int(b.Day.Sub(start_day).Hours()) / 24, b.FrameId % P,
+		})
+	}
 
 	class_queue := [][2]int{
 		{
@@ -728,10 +725,6 @@ func (*SolverClass) TimetableChange(
 	class_used := make([]bool, len(graph.Nodes))
 	var final_move []usecase.TimetableMove
 	var final_cost int = INF
-	avoid, err := NewTimetableAvoid(teachers, tt_all, start_day)
-	if err != nil {
-		return nil, 0, errors.ErrorWrap(err)
-	}
 	place_indexes, err := NewPlaceIndexes(places, tt_all)
 	if err != nil {
 		return nil, 0, errors.ErrorWrap(err)
@@ -759,9 +752,6 @@ func (*SolverClass) TimetableChange(
 		return res
 	}
 
-	change_unit_idx := [2]int{
-		int(change_unit.Day.Sub(start_day).Hours()) / 24, change_unit.FramePeriod,
-	}
 	for len(class_queue) > 0 {
 		class_idx := class_queue[0][0]
 		class_dis := class_queue[0][1]
@@ -782,20 +772,18 @@ func (*SolverClass) TimetableChange(
 		if err != nil {
 			return nil, cost_inf, errors.ErrorWrap(err)
 		}
-		// log.Println("class id", graph.Nodes[class_idx].Id)
-		// log.Println("compress able", can_compress[class_idx])
-		// log.Println("idxs", idxs)
-		// for _, l := range idxs {
-		// 	i, j := l[0], l[1]
-		// 	log.Println("units", i, j, units[i][j])
-		// }
+
+		avoid, err := getAvoidCost(units, teachers, tt_all, start_day)
+		if err != nil {
+			return nil, 0, errors.ErrorWrap(err)
+		}
 
 		var cost [][][][]int
+		teacher_inval := teacher_relax
 		if teacher_relax == -1 {
-			cost = getCost(units, others, idxs, avoid, place_indexes, places, change_unit_idx, tt_all, start_day, change_unit)
-		} else {
-			cost = getCostRelaxTeacher(units, others, idxs, avoid, place_indexes, places, change_unit_idx, tt_all, start_day, teacher_relax, change_unit)
+			teacher_inval = INF
 		}
+		cost = getCost(units, others, idxs, avoid, place_indexes, places, change_unit_idx, tt_all, start_day, change_unit, ban_units_idx, teacher_inval)
 
 		mv, err := timetableChangeSolver(cost, change_unit_idx, units)
 		if err == ERR_CANT_SOLVE {
@@ -815,7 +803,6 @@ func (*SolverClass) TimetableChange(
 		co := getFinalCost(mv, cost)
 		next_units := getTeacherInval(units, others, tt_all, mv)
 		move := createMove(units, mv)
-		var sc SolverClass
 		log.Print("movebef", co, move)
 		ApplyChange(tt_all, move)
 		for _, u := range next_units {
@@ -829,13 +816,13 @@ func (*SolverClass) TimetableChange(
 			if !flag {
 				continue
 			}
-			tm, c, err := sc.TimetableChange(tt_all, graph, &u, places, teachers, start_day, holidays, -1)
+			tm, c, err := ChangeUnit(tt_all, graph, &u, ban_units, places, teachers, start_day, holidays, -1)
 			if err != nil || c >= INF {
 				co = INF
 				break
 			}
 			co += c
-			err = AppendMove(move, tm)
+			move, err = AppendMove(move, tm)
 			if err != nil {
 				return nil, 0, errors.ErrorWrap(err)
 			}
@@ -844,12 +831,12 @@ func (*SolverClass) TimetableChange(
 		for _, t := range tt_all {
 			if isListCross(t.TeacherIds, bef_unit.TeacherIds) && t.Day.Equal(bef_unit.Day) && t.FrameId == bef_unit.FrameId {
 				// 元々のコマに動かす必要のある先生のコマ存在
-				tm, c, err := sc.TimetableChange(tt_all, graph, &t, places, teachers, start_day, holidays, -1)
+				tm, c, err := ChangeUnit(tt_all, graph, &t, ban_units, places, teachers, start_day, holidays, -1)
 				if err != nil || c >= INF {
 					co = INF
 				}
 				co += c
-				err = AppendMove(move, tm)
+				move, err = AppendMove(move, tm)
 				if err != nil {
 					return nil, 0, errors.ErrorWrap(err)
 				}
@@ -868,4 +855,109 @@ func (*SolverClass) TimetableChange(
 		return nil, INF, errors.ErrorWrap(ERR_CANT_SOLVE)
 	}
 	return final_move, final_cost, nil
+}
+
+func equalDate(t1 time.Time, t2 time.Time) bool {
+	return t1.Year() == t2.Year() && t1.Month() == t2.Month() && t1.Day() == t2.Day()
+}
+
+type SolverClass struct {
+}
+
+// 時間割変更
+// args:
+// teacher_relax: -1: 緩和しない。0 以上で cost に対応
+// return move, cost, error
+func (*SolverClass) TimetableChange(
+	tt_all []usecase.Timetable,
+	graph usecase.ClassGraph,
+	change_teacher usecase.Teacher,
+	ban_units []usecase.BanUnit,
+	places []usecase.Place,
+	teachers []usecase.Teacher,
+	start_day time.Time,
+	holidays []time.Time,
+	teacher_relax int,
+) ([]usecase.TimetableMove, int, error) {
+	in := func(a int, l []int) bool {
+		for _, b := range l {
+			if a == b {
+				return true
+			}
+		}
+		return false
+	}
+	in_ban_unit := func(d time.Time, f int) bool {
+		for _, u := range ban_units {
+			if equalDate(u.Day, d) && u.FrameId == f {
+				return true
+			}
+		}
+		return false
+	}
+
+	var change_tt []usecase.Timetable
+	for _, t := range tt_all {
+		if in(change_teacher.Id, t.TeacherIds) && in_ban_unit(t.Day, t.FrameId) {
+			change_tt = append(change_tt, t)
+		}
+	}
+
+	var move []usecase.TimetableMove
+	score := 0
+	for cnt := 0; cnt < len(ban_units) && len(change_tt) > 0; cnt++ {
+		log.Println("change tt", change_tt)
+		var bef1 []usecase.Timetable
+		bef1 = append(bef1, tt_all...)
+		res, sc, err := ChangeUnit(tt_all, graph, &change_tt[0], ban_units, places, teachers, start_day, holidays, teacher_relax)
+		if err != nil {
+			return res, sc, errors.ErrorWrap(err)
+		}
+		for i, t := range tt_all {
+			c := bef1[i]
+			if !(t.TeacherIds[0] == c.TeacherIds[0] && t.ClassId == c.ClassId && equalDate(t.Day, c.Day) && t.FrameId == c.FrameId && t.SubjectId == c.SubjectId && t.DurationId == c.DurationId) {
+				log.Fatal("tt_all error", t, c)
+			}
+		}
+		var bef_tt []usecase.Timetable
+		bef_tt = append(bef_tt, change_tt...)
+		change_tt = []usecase.Timetable{}
+		for _, t := range bef_tt {
+			flag := true
+			for _, mv := range res {
+				if t.Id == mv.Unit.Id {
+					if in_ban_unit(mv.Day, mv.FrameId) {
+						t.Day = mv.Day
+						t.FrameId = mv.FrameId
+					} else {
+						flag = false
+					}
+					break
+				}
+			}
+			if flag {
+				change_tt = append(change_tt, t)
+			}
+		}
+		ApplyChange(tt_all, res)
+		move, err = AppendMove(move, res)
+		if err != nil {
+			return nil, 0, errors.ErrorWrap(err)
+		}
+		for _, t := range tt_all {
+			for _, c := range change_tt {
+				if t.Id != c.Id {
+					continue
+				}
+				if !(t.TeacherIds[0] == c.TeacherIds[0] && t.ClassId == c.ClassId && equalDate(t.Day, c.Day) && t.FrameId == c.FrameId && t.SubjectId == c.SubjectId && t.DurationId == c.DurationId) {
+					log.Fatal("apply change error", t, c)
+				}
+			}
+		}
+	}
+	if len(change_tt) > 0 {
+		return nil, 0, errors.NewError("cannot solve")
+	}
+
+	return move, score, nil
 }

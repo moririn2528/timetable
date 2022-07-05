@@ -5,6 +5,12 @@ import { createRoot } from "react-dom/client";
 import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetableMoveDecoder, TimetableUnit, TimetableUnitProps, TimetablePreviewDate } from "./timetable";
 
 (function () {
+	const PERIOD = 7; // 1日の最大コマ数
+	type BanUnit = {
+		date: Date;
+		period: number;
+	};
+
 	type TeacherType = decodeType<typeof inputTeacherDecoder>;
 	const inputTeacherDecoder = record({
 		id: number,
@@ -21,6 +27,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 
 	type TeacherTimetableUnitProps = TimetableUnitProps & {
 		avoid: number;
+		color?: string;
 	};
 
 	const TeacherTimetableUnit = (props: TeacherTimetableUnitProps) => {
@@ -52,13 +59,58 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 				break;
 		}
 
+		return <TimetableUnit units={props.units} onClick={props.onClick} color1={props.color} color2={col} />;
+	};
+
+	const SearchChange = (props: { teacher_id: number; select_units: BanUnit[]; date: Date; clear_units: () => void }) => {
+		const day_weak_strs = ["月", "火", "水", "木", "金", "土"];
+		const [change_units, setChangeUnits] = React.useState<TimetableMoveType[]>([]);
+		const [change_error, setChangeError] = React.useState<string | undefined>();
+		const [on_load, setOnLoad] = React.useState<Boolean>(false);
+
+		const calc = () => {
+			server
+				.get(
+					`timetable/change?duration_id=1&teacher_id=${props.teacher_id}&day=${date2str(props.date)}&ban_units=${props.select_units
+						.map((val) => date2str(val.date) + "A" + String(val.period))
+						.join("A")}`
+				)
+				.then(array(timetableMoveDecoder))
+				.then((data) => {
+					setChangeUnits(data);
+					setChangeError(undefined);
+					setOnLoad(false);
+				})
+				.catch((e) => {
+					setChangeUnits([]);
+					setChangeError(String(e));
+					setOnLoad(false);
+				});
+		};
+
 		return (
-			<div
-				style={{
-					background: col,
-				}}
-			>
-				<TimetableUnit units={props.units} onClick={props.onClick} />
+			<div>
+				{!on_load && props.select_units.length > 0 ? (
+					<div>
+						<button onClick={calc}>計算</button>
+						<button onClick={props.clear_units}>クリア</button>
+					</div>
+				) : (
+					""
+				)}
+				{change_error != undefined ? "エラー: " + change_error : ""}
+				<br />
+				結果: {on_load ? "計算中" : ""}
+				<br />
+				{change_units.map((val, index) => {
+					const tim = val.timetable;
+					return (
+						<div key={index}>
+							クラス名: {tim.class_name}, 教科: {tim.subject_name}, 先生: {tim.teacher_name.join(",")} 日時: {date2str(tim.day)}({day_weak_strs[tim.day.getDay() - 1]}){" "}
+							{(tim.frame_id % PERIOD) + 1} 限 変更日時: {date2str(val.day)}({day_weak_strs[val.day.getDay() - 1]}) {(val.frame_id % PERIOD) + 1}限
+						</div>
+					);
+				})}
 			</div>
 		);
 	};
@@ -70,14 +122,13 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 	type TimetableState = {
 		units: TimetableType[][];
 		avoids: number[];
-		change_units: TimetableMoveType[];
-		change_error?: string;
+		selected_units: BanUnit[];
 	};
 
 	class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
 		static day_weak_strs = ["月", "火", "水", "木", "金", "土"];
 		static D = 6;
-		static P = 7;
+		static P = PERIOD;
 
 		constructor(props: TimetableProps) {
 			super(props);
@@ -85,11 +136,12 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 			const P = TeacherTimetable.P;
 			this.state = {
 				units: new Array(D * P).fill([]),
-				change_units: [],
 				avoids: new Array(D * P).fill(0),
+				selected_units: [],
 			};
 			this.setUnits = this.setUnits.bind(this);
 			this.setAvoids = this.setAvoids.bind(this);
+			this.printUnit = this.printUnit.bind(this);
 			this.getTimetable();
 		}
 
@@ -123,17 +175,41 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 
 		printUnit(d: number, p: number) {
 			// day, period
+			const date = new Date(this.props.date);
+			date.setDate(date.getDate() - date.getDay() + d + 1);
 			const onClick = () => {
-				const change_id = this.state.units[d * 7 + p][0].id;
-				server
-					.get(`timetable/change?change_id=${change_id}&duration_id=1&day=${date2str(this.props.date)}`)
-					.then(array(timetableMoveDecoder))
-					.then((data) => this.setState({ change_units: data, change_error: undefined }))
-					.catch((e) => {
-						this.setState({ change_error: String(e) });
+				this.setState((prevstate) => {
+					const select_units = [...prevstate.selected_units];
+					const unit: BanUnit = {
+						date: date,
+						period: p,
+					};
+					const idx = select_units.findIndex((u) => {
+						return u.date.getTime() == date.getTime() && u.period == p;
 					});
+					if (idx != -1) {
+						// erase select_units[idx]
+						const m = select_units.length - 1;
+						[select_units[idx], select_units[m]] = [select_units[m], select_units[idx]];
+						select_units.pop();
+					} else {
+						select_units.push(unit);
+					}
+					return {
+						selected_units: select_units,
+					};
+				});
 			};
-			return <TeacherTimetableUnit key={d} units={this.state.units[d * 7 + p]} avoid={this.state.avoids[d * 7 + p]} onClick={onClick} />;
+
+			return (
+				<TeacherTimetableUnit
+					key={d}
+					units={this.state.units[d * 7 + p]}
+					avoid={this.state.avoids[d * 7 + p]}
+					onClick={onClick}
+					color={this.state.selected_units.findIndex((val) => val.date.getTime() == date.getTime() && val.period == p) != -1 ? "#baefb3" : undefined}
+				/>
+			);
 		}
 
 		printUnits() {
@@ -158,26 +234,6 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 			}
 
 			return <tbody>{table_unit}</tbody>;
-		}
-
-		printChanges() {
-			const changes = this.state.change_units;
-			if (this.state.change_error != null) {
-				return <div className="changes">サーバーエラー: {this.state.change_error}</div>;
-			}
-			return (
-				<div className="changes">
-					{changes.map((d) => {
-						const tim = d.timetable;
-						return (
-							<div key={d.timetable.id}>
-								クラス名: {tim.class_name}, 教科: {tim.subject_name}, 先生: {tim.teacher_name.join(",")} 日時: {date2str(tim.day)}({this.getDaystr(tim.day.getDay())}){" "}
-								{tim.frame_period + 1} 限 変更日時: {date2str(d.day)}({this.getDaystr(d.day.getDay())}) {(d.frame_id % 7) + 1}限
-							</div>
-						);
-					})}
-				</div>
-			);
 		}
 
 		setUnits(timetables: TimetableType[]) {
@@ -243,7 +299,16 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 							{this.printUnits()}
 						</table>
 					</div>
-					{this.printChanges()}
+					<SearchChange
+						teacher_id={this.props.teacher}
+						date={this.props.date}
+						select_units={this.state.selected_units}
+						clear_units={() =>
+							this.setState({
+								selected_units: [],
+							})
+						}
+					/>
 				</div>
 			);
 		}
@@ -283,6 +348,6 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 			return;
 		}
 		const root = createRoot(container);
-		root.render(<TimetableWithDate teachers={teachers} date={new Date(2021, 3, 12)} />);
+		root.render(<TimetableWithDate teachers={teachers} date={new Date(2021, 3, 13)} />);
 	});
 })();

@@ -90,13 +90,13 @@ func getChangeTimetable(w http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return errors.ErrorWrap(err, http.StatusBadRequest, "input day parse error")
 	}
-	change_id_str, ok := req.Form["change_id"]
-	if !ok || len(change_id_str) != 1 {
-		return errors.NewError(http.StatusBadRequest, "no change id")
+	teacher_id_str, ok := req.Form["teacher_id"]
+	if !ok || len(teacher_id_str) != 1 {
+		return errors.NewError(http.StatusBadRequest, "no teacher_id")
 	}
-	change_id, err := strconv.Atoi(change_id_str[0])
+	teacher_id, err := strconv.Atoi(teacher_id_str[0])
 	if err != nil {
-		return errors.ErrorWrap(err, http.StatusBadRequest, "input change id parse error")
+		return errors.ErrorWrap(err, http.StatusBadRequest, "input teacher_id parse error")
 	}
 	duration_id_str, ok := req.Form["duration_id"]
 	if !ok || len(duration_id_str) != 1 {
@@ -106,7 +106,33 @@ func getChangeTimetable(w http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return errors.ErrorWrap(err, http.StatusBadRequest, "input duration id parse error")
 	}
-	changes, err := usecase.ChangeTimetable(duration_id, date, change_id)
+	ban_units_str, ok := req.Form["ban_units"]
+	if !ok {
+		return errors.NewError(http.StatusBadRequest, "no ban_units")
+	}
+	var ban_units []usecase.BanUnit
+	for _, bs := range ban_units_str {
+		units_list := strings.Split(bs, "A")
+		if len(units_list)%2 != 0 {
+			return errors.NewError(http.StatusBadRequest, "ban_units error")
+		}
+		for i := 0; i < len(units_list); i += 2 {
+			d, err := time.ParseInLocation("2006-01-02", units_list[i], time.Local)
+			if err != nil && d.Weekday() == 0 {
+				return errors.ErrorWrap(err, http.StatusBadRequest, "input ban_units parse date error")
+			}
+			f, err := strconv.Atoi(units_list[i+1])
+			if err != nil || f < 0 || usecase.PERIOD <= f {
+				return errors.ErrorWrap(err, http.StatusBadRequest, "input ban_units parse frame id error")
+			}
+			f += int(d.Weekday()-1) * usecase.PERIOD
+			ban_units = append(ban_units, usecase.BanUnit{
+				Day:     d,
+				FrameId: f,
+			})
+		}
+	}
+	changes, err := usecase.ChangeTimetable(duration_id, date, teacher_id, ban_units)
 	if err != nil {
 		return errors.ErrorWrap(err)
 	}

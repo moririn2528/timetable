@@ -85,8 +85,6 @@ func (*DatabaseTimetable) GetNomalTimetable(duration_id int, class_ids []int, te
 		err := rows.Scan(&t.Id, &t.ClassId, &t.ClassName, &t.DurationId,
 			&t.DurationName, &t.FrameId,
 			&t.SubjectId, &t.SubjectName, &teach_id, &teach_name, &teach2_id, &teach2_name)
-		t.FrameDayWeek = t.FrameId/usecase.PERIOD + 1
-		t.FramePeriod = t.FrameId % usecase.PERIOD
 		t.TeacherIds = []int{teach_id}
 		t.TeacherNames = []string{teach_name}
 		if teach2_id.Valid {
@@ -226,8 +224,6 @@ func (dc *DatabaseTimetable) GetTimetable(
 			&t.SubjectId, &t.SubjectName, &teach_id, &teach_name,
 			&t.Day, &teach2_id, &teach2_name,
 		)
-		t.FrameDayWeek = t.FrameId/usecase.PERIOD + 1
-		t.FramePeriod = t.FrameId % usecase.PERIOD
 		t.TeacherIds = []int{teach_id}
 		t.TeacherNames = []string{teach_name}
 		if teach2_id.Valid {

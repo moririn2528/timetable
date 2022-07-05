@@ -33,7 +33,8 @@ type SolverClass interface {
 	TimetableChange(
 		tt_all []Timetable,
 		graph ClassGraph,
-		change_unit *Timetable,
+		change_teacher Teacher,
+		ban_units []BanUnit,
 		places []Place,
 		teachers []Teacher,
 		start_day time.Time,

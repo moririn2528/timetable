@@ -56,7 +56,7 @@ func main() {
 	log.Print("start")
 	port, ok := os.LookupEnv("PORT")
 	if !ok {
-		port = "54321"
+		port = "80"
 	}
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
