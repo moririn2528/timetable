@@ -1,5 +1,5 @@
 import { server, jsdate } from "./api";
-import { decodeType, record, number, string, array, undef } from "typescript-json-decoder";
+import { decodeType, record, number, string, array, undef, dict } from "typescript-json-decoder";
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetableMoveDecoder, TimetableUnit, TimetableUnitProps, TimetablePreviewDate } from "./timetable";
@@ -62,13 +62,14 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 		return <TimetableUnit units={props.units} onClick={props.onClick} color1={props.color} color2={col} />;
 	};
 
-	const SearchChange = (props: { teacher_id: number; select_units: BanUnit[]; date: Date; clear_units: () => void }) => {
+	const SearchChange = (props: { teacher_id: number; select_units: BanUnit[]; date: Date; clear_units: () => void; display_changes: (param: TimetableMoveType[]) => void }) => {
 		const day_weak_strs = ["月", "火", "水", "木", "金", "土"];
 		const [change_units, setChangeUnits] = React.useState<TimetableMoveType[]>([]);
 		const [change_error, setChangeError] = React.useState<string | undefined>();
 		const [on_load, setOnLoad] = React.useState<Boolean>(false);
 
 		const calc = () => {
+			setOnLoad(true);
 			server
 				.get(
 					`timetable/change?duration_id=1&teacher_id=${props.teacher_id}&day=${date2str(props.date)}&ban_units=${props.select_units
@@ -88,15 +89,21 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 				});
 		};
 
+		const buttonDisplay = () => {
+			props.display_changes(change_units);
+		};
 		return (
 			<div>
 				{!on_load && props.select_units.length > 0 ? (
 					<div>
 						<button onClick={calc}>計算</button>
 						<button onClick={props.clear_units}>クリア</button>
+						<button onClick={buttonDisplay}>描画</button>
 					</div>
 				) : (
-					""
+					<div>
+						<button onClick={buttonDisplay}>描画</button>
+					</div>
 				)}
 				{change_error != undefined ? "エラー: " + change_error : ""}
 				<br />
@@ -123,6 +130,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 		units: TimetableType[][];
 		avoids: number[];
 		selected_units: BanUnit[];
+		change_units: TimetableMoveType[];
 	};
 
 	class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
@@ -138,6 +146,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 				units: new Array(D * P).fill([]),
 				avoids: new Array(D * P).fill(0),
 				selected_units: [],
+				change_units: [],
 			};
 			this.setUnits = this.setUnits.bind(this);
 			this.setAvoids = this.setAvoids.bind(this);
@@ -173,7 +182,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 			);
 		}
 
-		printUnit(d: number, p: number) {
+		printUnit(d: number, p: number, change_from: boolean, change_to: boolean) {
 			// day, period
 			const date = new Date(this.props.date);
 			date.setDate(date.getDate() - date.getDay() + d + 1);
@@ -200,28 +209,45 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 					};
 				});
 			};
+			let color: string | undefined = undefined;
+			if (change_from && change_to) {
+				color = "#fcf8b3";
+			} else if (change_from) {
+				color = "#ffbeba";
+			} else if (change_to) {
+				color = "#b5e1ff";
+			} else if (this.state.selected_units.findIndex((val) => val.date.getTime() == date.getTime() && val.period == p) != -1) {
+				color = "#baefb3";
+			}
 
-			return (
-				<TeacherTimetableUnit
-					key={d}
-					units={this.state.units[d * 7 + p]}
-					avoid={this.state.avoids[d * 7 + p]}
-					onClick={onClick}
-					color={this.state.selected_units.findIndex((val) => val.date.getTime() == date.getTime() && val.period == p) != -1 ? "#baefb3" : undefined}
-				/>
-			);
+			return <TeacherTimetableUnit key={d} units={this.state.units[d * 7 + p]} avoid={this.state.avoids[d * 7 + p]} onClick={onClick} color={color} />;
 		}
 
 		printUnits() {
 			const table_unit: JSX.Element[] = [];
 			const D = TeacherTimetable.D;
 			const P = TeacherTimetable.P;
+			const start_date = new Date(this.props.date);
+			start_date.setDate(start_date.getDate() - start_date.getDay() + 1);
+			const change_from: number[] = [];
+			const change_to: number[] = [];
+
+			for (let i = 0; i < this.state.change_units.length; i++) {
+				const u = this.state.change_units[i];
+				if (!u.timetable.teacher_id.includes(this.props.teacher)) continue;
+				let d = (u.timetable.day.getTime() - start_date.getTime()) / (24 * 60 * 60 * 1000);
+				let p = u.timetable.frame_id % P;
+				if (0 <= d && d < D) change_from.push(d * P + p);
+				d = (u.day.getTime() - start_date.getTime()) / (24 * 60 * 60 * 1000);
+				p = u.frame_id % P;
+				if (0 <= d && d < D) change_to.push(d * P + p);
+			}
 			for (let i = 0; i < P; i++) {
 				const table_row: JSX.Element[] = [];
 				for (let j = 0; j < D; j++) {
 					table_row.push(
 						<td className="unit" key={j}>
-							{this.printUnit(j, i)}
+							{this.printUnit(j, i, change_from.includes(j * P + i), change_to.includes(j * P + i))}
 						</td>
 					);
 				}
@@ -291,6 +317,24 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 		}
 
 		render(): React.ReactNode {
+			const clear_units = () =>
+				this.setState({
+					selected_units: [],
+				});
+			const display_changes = (move: TimetableMoveType[]) => {
+				this.setState((prev) => {
+					const bef = prev.change_units;
+					if (JSON.stringify(bef) == JSON.stringify(move)) {
+						return {
+							change_units: [],
+						};
+					} else {
+						return {
+							change_units: move,
+						};
+					}
+				});
+			};
 			return (
 				<div>
 					<div id="timetable">
@@ -299,16 +343,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 							{this.printUnits()}
 						</table>
 					</div>
-					<SearchChange
-						teacher_id={this.props.teacher}
-						date={this.props.date}
-						select_units={this.state.selected_units}
-						clear_units={() =>
-							this.setState({
-								selected_units: [],
-							})
-						}
-					/>
+					<SearchChange teacher_id={this.props.teacher} date={this.props.date} select_units={this.state.selected_units} clear_units={clear_units} display_changes={display_changes} />
 				</div>
 			);
 		}
