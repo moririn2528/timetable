@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -44,6 +45,13 @@ func main() {
 	usecase.Db_timetabale = &database.DatabaseTimetable{}
 	usecase.Solver = &solve.SolverClass{}
 
+	f := flag.String("mode", "normal", "実行モード")
+	flag.Parse()
+
+	if *f == "init-holiday" {
+		database.SetHoliday()
+		return
+	}
 	// test()
 
 	http.Handle("/", http.FileServer(http.Dir("../../front")))
