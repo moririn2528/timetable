@@ -185,7 +185,9 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 		printUnit(d: number, p: number, change_from: boolean, change_to: boolean) {
 			// day, period
 			const date = new Date(this.props.date);
-			date.setDate(date.getDate() - date.getDay() + d + 1);
+			let dif = d + 1 - date.getDay();
+			if (dif < 0) dif += 7;
+			date.setDate(date.getDate() + dif);
 			const onClick = () => {
 				this.setState((prevstate) => {
 					const select_units = [...prevstate.selected_units];
@@ -223,6 +225,15 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 			return <TeacherTimetableUnit key={d} units={this.state.units[d * 7 + p]} avoid={this.state.avoids[d * 7 + p]} onClick={onClick} color={color} />;
 		}
 
+		getDayIndex(day: Date) {
+			const D = TeacherTimetable.D;
+			let d = (day.getTime() - this.props.date.getTime()) / (24 * 60 * 60 * 1000);
+			if (d < 0 || 7 <= d) return -1;
+			d += this.props.date.getDay() - 1;
+			if (d >= D) d -= D;
+			return d;
+		}
+
 		printUnits() {
 			const table_unit: JSX.Element[] = [];
 			const D = TeacherTimetable.D;
@@ -235,12 +246,14 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 			for (let i = 0; i < this.state.change_units.length; i++) {
 				const u = this.state.change_units[i];
 				if (!u.timetable.teacher_id.includes(this.props.teacher)) continue;
-				let d = (u.timetable.day.getTime() - start_date.getTime()) / (24 * 60 * 60 * 1000);
+				let d = this.getDayIndex(u.timetable.day);
+				let d2 = u.timetable.day.getDay() - 1;
 				let p = u.timetable.frame_id % P;
-				if (0 <= d && d < D) change_from.push(d * P + p);
-				d = (u.day.getTime() - start_date.getTime()) / (24 * 60 * 60 * 1000);
+				if (0 <= d && d < D) change_from.push(d2 * P + p);
+				d = this.getDayIndex(u.day);
+				d2 = u.day.getDay() - 1;
 				p = u.frame_id % P;
-				if (0 <= d && d < D) change_to.push(d * P + p);
+				if (0 <= d && d < D) change_to.push(d2 * P + p);
 			}
 			for (let i = 0; i < P; i++) {
 				const table_row: JSX.Element[] = [];
