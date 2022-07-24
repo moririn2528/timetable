@@ -1,6 +1,8 @@
 package communicate
 
 import (
+	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -143,11 +145,40 @@ func getChangeTimetable(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
+func postChangeTimetable(w http.ResponseWriter, req *http.Request) error {
+	if req.Header.Get("Content-Type") != "application/json" {
+		return errors.NewError(http.StatusBadRequest, "content type")
+	}
+	leng, err := strconv.Atoi(req.Header.Get("Content-Length"))
+	if err != nil {
+		return errors.ErrorWrap(err, http.StatusBadRequest, "content length")
+	}
+	body := make([]byte, leng)
+	leng, err = req.Body.Read(body)
+	if err != nil && err != io.EOF {
+		return errors.ErrorWrap(err, http.StatusBadRequest, "read body error")
+	}
+	var move []usecase.TimetableMove
+	err = json.Unmarshal(body[:leng], &move)
+	if err != nil {
+		return errors.ErrorWrap(err, http.StatusBadRequest, "json parse error")
+	}
+
+	err = usecase.MoveTimetable(move)
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
+
+	return nil
+}
+
 func ChangeTimetableHandle(w http.ResponseWriter, req *http.Request) {
 	var err error
 	switch req.Method {
 	case "GET":
 		err = getChangeTimetable(w, req)
+	case "POST":
+		err = postChangeTimetable(w, req)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("test"))

@@ -114,3 +114,11 @@ func ChangeTimetable(duration_id int, search_day time.Time, teacher_id int, ban_
 	}
 	return changes, nil
 }
+
+func MoveTimetable(move []TimetableMove) error {
+	err := Db_timetabale.MoveTimetable(move)
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
+	return nil
+}
