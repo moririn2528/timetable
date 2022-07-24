@@ -1,16 +1,15 @@
 package database
 
 import (
-	"database/sql"
 	"log"
 	"os"
-	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 var (
-	db *sql.DB
+	db *sqlx.DB
 )
 
 func init() {
@@ -36,20 +35,9 @@ func init() {
 		sql_dsn = string(buf[:n])
 	}
 	var err error
-	db, err = sql.Open("mysql", sql_dsn)
+	db, err = sqlx.Connect("mysql", sql_dsn)
 	if err != nil {
 		log.Fatal("sql error", err)
-	}
-	for i := 0; i < 20; i++ {
-		err = db.Ping()
-		if err == nil {
-			break
-		}
-		log.Printf("sql ping, retry %v", i)
-		time.Sleep(time.Second * 2)
-	}
-	if err = db.Ping(); err != nil {
-		log.Fatal("sql ping error: ", err)
 	}
 }
 
