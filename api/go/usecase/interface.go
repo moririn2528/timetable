@@ -20,6 +20,7 @@ type DatabaseTimetable interface {
 		duration_id int, class_ids []int, teacher_id int,
 		start_day time.Time, end_day time.Time,
 	) ([]Timetable, error)
+	MoveTimetable(move []TimetableMove) error
 }
 
 type DatabaseAny interface {
@@ -27,6 +28,8 @@ type DatabaseAny interface {
 	GetTeacher() ([]Teacher, error)
 	GetPlace() ([]Place, error)
 	GetHolidays() ([]time.Time, error)
+	FindUser(user User, password string) error
+	InsertUser(user User, password string) error
 }
 
 type SolverClass interface {

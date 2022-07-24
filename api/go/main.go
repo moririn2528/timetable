@@ -11,6 +11,8 @@ import (
 	"timetable/database"
 	"timetable/solve"
 	"timetable/usecase"
+
+	"github.com/joho/godotenv"
 )
 
 func init() {
@@ -52,9 +54,16 @@ func main() {
 		database.SetHoliday()
 		return
 	}
+
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	// test()
 
 	http.Handle("/", http.FileServer(http.Dir("../../front")))
+	http.HandleFunc("/api/login", communicate.LoginHandle)
 	http.HandleFunc("/api/timetable/class", communicate.ClassTimetableHandle)
 	http.HandleFunc("/api/timetable/teacher", communicate.TeacherTimetableHandle)
 	http.HandleFunc("/api/timetable/change", communicate.ChangeTimetableHandle)
