@@ -3,7 +3,9 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,6 +18,20 @@ import (
 type DatabaseAny struct {
 }
 type DatabaseTimetable struct {
+}
+
+func parseNormal2id(id int, date time.Time) int {
+	return id*1e6 + date.Year()%100*1e4 + int(date.Month())*100 + date.Day()
+}
+func parseAdditional2id(id int, date time.Time) int {
+	return id*1e6 + date.Year()%100*1e4 + (int(date.Month())+20)*100 + date.Day()
+}
+func parse2DatabaseId(id int) int {
+	return id / 1e6
+}
+func isNormalId(id int) bool {
+	id /= 100
+	return id%100 < 20
 }
 
 func (*DatabaseAny) GetDurationId(date time.Time) (int, error) {
@@ -85,8 +101,6 @@ func (*DatabaseTimetable) GetNomalTimetable(duration_id int, class_ids []int, te
 		err := rows.Scan(&t.Id, &t.ClassId, &t.ClassName, &t.DurationId,
 			&t.DurationName, &t.FrameId,
 			&t.SubjectId, &t.SubjectName, &teach_id, &teach_name, &teach2_id, &teach2_name)
-		t.FrameDayWeek = t.FrameId/usecase.PERIOD + 1
-		t.FramePeriod = t.FrameId % usecase.PERIOD
 		t.TeacherIds = []int{teach_id}
 		t.TeacherNames = []string{teach_name}
 		if teach2_id.Valid {
@@ -212,6 +226,7 @@ func (dc *DatabaseTimetable) GetTimetable(
 	if err != nil {
 		return res, errors.ErrorWrap(err)
 	}
+	defer rows.Close()
 	var additional_timetable []usecase.Timetable
 	var additional_timetable_temp []usecase.Timetable
 	for rows.Next() {
@@ -226,8 +241,9 @@ func (dc *DatabaseTimetable) GetTimetable(
 			&t.SubjectId, &t.SubjectName, &teach_id, &teach_name,
 			&t.Day, &teach2_id, &teach2_name,
 		)
-		t.FrameDayWeek = t.FrameId/usecase.PERIOD + 1
-		t.FramePeriod = t.FrameId % usecase.PERIOD
+		if err != nil {
+			return res, errors.ErrorWrap(err)
+		}
 		t.TeacherIds = []int{teach_id}
 		t.TeacherNames = []string{teach_name}
 		if teach2_id.Valid {
@@ -237,10 +253,7 @@ func (dc *DatabaseTimetable) GetTimetable(
 			t.TeacherIds = append(t.TeacherIds, int(teach2_id.Int64))
 			t.TeacherNames = append(t.TeacherNames, teach2_name.String)
 		}
-		t.Id = id*1e6 + t.Day.Year()%100*1e4 + (int(t.Day.Month())+20)*100 + t.Day.Day()
-		if err != nil {
-			return res, errors.ErrorWrap(err)
-		}
+		t.Id = parseAdditional2id(t.Id, t.Day)
 		additional_timetable_temp = append(additional_timetable_temp, t)
 	}
 
@@ -347,7 +360,7 @@ func (dc *DatabaseTimetable) GetTimetable(
 					NormalTimetable: normal[day_week][y],
 					Day:             d,
 				}
-				t.Id = t.Id*1e6 + t.Day.Year()%100*1e4 + int(t.Day.Month())*100 + t.Day.Day()
+				t.Id = parseNormal2id(t.Id, t.Day)
 				res = append(res, *t)
 			}
 			if y < len(normal[day_week]) && normal[day_week][y].FrameId == id {
@@ -364,4 +377,265 @@ func (dc *DatabaseTimetable) GetTimetable(
 		add_normal(math.MaxInt)
 	}
 	return res, nil
+}
+
+func (dc *DatabaseTimetable) MoveTimetable(
+	move []usecase.TimetableMove,
+) error {
+	// database と move の相違がないか調べる
+	equal_teacher := func(t []int, t1 int, t2a sql.NullInt32) bool {
+		if len(t) == 0 || len(t) > 2 {
+			return false
+		}
+		if len(t) == 1 {
+			return t[0] == t1 && !t2a.Valid
+		}
+		if !t2a.Valid {
+			return false
+		}
+		t2 := int(t2a.Int32)
+		if t1 == t2 {
+			return false
+		}
+		return (t1 == t[0] && t2 == t[1]) || (t1 == t[1] && t2 == t[0])
+	}
+	type NormalTimetable struct {
+		Id           int           `json:"id" db:"id"`
+		DurationId   int           `json:"duration_id" db:"duration_id"`
+		ClassId      int           `json:"class_id" db:"class_id"`
+		TeacherId    int           `json:"teacher_id" db:"teacher_id"`
+		SubjectId    int           `json:"subject_id" db:"subject_id"`
+		FrameId      int           `json:"frame_id" db:"frame_id"`
+		PlaceId      int           `json:"place_id" db:"place_id"`
+		AddTeacherId sql.NullInt32 `json:"add_teacher_id" db:"add_teacher_id"`
+	}
+	type AdditionalTimetable struct {
+		NormalTimetable
+		Day time.Time `json:"day" db:"day"`
+	}
+
+	var nor, add []usecase.Timetable
+	for _, v := range move {
+		if isNormalId(v.Unit.Id) {
+			nor = append(nor, v.Unit)
+		} else {
+			add = append(add, v.Unit)
+		}
+	}
+	if len(nor) > 0 {
+		var idstrs []string
+		id2idx := make(map[int]int, len(nor))
+		for i, t := range nor {
+			idstrs = append(idstrs, strconv.Itoa(t.Id))
+			id2idx[t.Id] = i
+		}
+		var rows []NormalTimetable
+		err := db.Select(rows, strings.Join([]string{
+			"SELECT id, duration_id, class_id, teacher_id, subject_id, frame_id,",
+			"place_id, add_teacher_id FROM normal_timetable",
+			"WHERE id in (" + strings.Join(idstrs, ",") + ")",
+			"ORDERED BY id",
+		}, " "))
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+		cnt := 0
+		for _, t1 := range rows {
+			if err != nil {
+				return errors.ErrorWrap(err)
+			}
+			idx, ok := id2idx[t1.Id]
+			if !ok {
+				return errors.NewError("assert error")
+			}
+			t2 := nor[idx]
+			if !(t1.Id == parse2DatabaseId(t2.Id) && t1.DurationId == t2.DurationId && t1.ClassId == t2.ClassId && t1.SubjectId == t2.SubjectId &&
+				t1.PlaceId == t2.PlaceId && equal_teacher(t2.TeacherIds, t1.TeacherId, t1.AddTeacherId) && t1.FrameId/usecase.PERIOD == int(t2.Day.Weekday())-1) {
+				return errors.NewError(http.StatusBadRequest, "timetable is difference")
+			}
+			cnt++
+		}
+		if len(nor) != cnt {
+			return errors.NewError(http.StatusBadRequest, "timetable is difference")
+		}
+	}
+	if len(add) > 0 {
+		var idstrs []string
+		id2idx := make(map[int]int, len(nor))
+		for i, t := range add {
+			idstrs = append(idstrs, strconv.Itoa(t.Id))
+			id2idx[t.Id] = i
+		}
+		var rows []AdditionalTimetable
+		err := db.Select(rows, strings.Join([]string{
+			"SELECT id, duration_id, class_id, teacher_id, subject_id, frame_id,",
+			"place_id, add_teacher_id, day FROM additional_timetable",
+			"WHERE id in (" + strings.Join(idstrs, ",") + ")",
+			"ORDERED BY id",
+		}, " "))
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+		cnt := 0
+		for _, t1 := range rows {
+			if err != nil {
+				return errors.ErrorWrap(err)
+			}
+			idx, ok := id2idx[t1.Id]
+			if !ok {
+				return errors.NewError("assert error")
+			}
+			t2 := add[idx]
+			if !(t1.Id == parse2DatabaseId(t2.Id) && t1.DurationId == t2.DurationId && t1.ClassId == t2.ClassId && t1.SubjectId == t2.SubjectId &&
+				t1.PlaceId == t2.PlaceId && t1.Day.Equal(t2.Day) && equal_teacher(t2.TeacherIds, t1.TeacherId, t1.AddTeacherId)) {
+				return errors.NewError(http.StatusBadRequest, "timetable is difference")
+			}
+			cnt++
+		}
+		if len(add) != cnt {
+			return errors.NewError(http.StatusBadRequest, "timetable is difference")
+		}
+	}
+
+	// database から削除
+	recoverNormal := func() {}
+	if len(nor) > 0 {
+		type DelTimetable struct {
+			Id       int       `json:"id" db:"id"`
+			NormalId int       `json:"normal_id" db:"normal_id"`
+			Day      time.Time `json:"day" db:"day"`
+		}
+		var dels []DelTimetable
+		for _, t := range nor {
+			dels = append(dels, DelTimetable{
+				Id:       t.Id,
+				NormalId: parse2DatabaseId(t.Id),
+				Day:      t.Day,
+			})
+		}
+		res, err := db.Exec("INSERT INTO deleted_normal_timetable(id,normal_id,day) VALUES (:id,:normal_id,:day)", dels)
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+		recoverNormal = func() {
+			if len(nor) == 0 {
+				return
+			}
+			var ids []string
+			for _, t := range nor {
+				ids = append(ids, strconv.Itoa(t.Id))
+			}
+			_, err = db.Exec("DELETE FROM deleted_normal_timetable WHERE id IN (" + strings.Join(ids, ",") + ")")
+			if err != nil {
+				log.Printf("Critical Error: %v", err)
+			}
+		}
+		rnum, err := res.RowsAffected()
+		if err != nil {
+			recoverNormal()
+			return errors.ErrorWrap(err)
+		}
+		if int(rnum) != len(nor) {
+			recoverNormal()
+			return errors.ErrorWrap(err)
+		}
+	}
+	recoverAdditional := func() {}
+	if len(add) > 0 {
+		var ids []string
+		for _, t := range add {
+			ids = append(ids, strconv.Itoa(parse2DatabaseId(t.Id)))
+		}
+		res, err := db.Exec("DELETE FROM additional_timetable WHERE id in (" + strings.Join(ids, ",") + ")")
+		if err != nil {
+			recoverNormal()
+			return errors.ErrorWrap(err)
+		}
+		var dels []AdditionalTimetable
+		for _, t := range add {
+			tim := AdditionalTimetable{
+				NormalTimetable: NormalTimetable{
+					Id:           parse2DatabaseId(t.Id),
+					DurationId:   t.DurationId,
+					ClassId:      t.ClassId,
+					TeacherId:    t.TeacherIds[0],
+					SubjectId:    t.SubjectId,
+					FrameId:      t.FrameId,
+					PlaceId:      t.PlaceId,
+					AddTeacherId: sql.NullInt32{Int32: 0, Valid: false},
+				},
+				Day: t.Day,
+			}
+			if len(t.TeacherIds) == 2 {
+				tim.AddTeacherId = sql.NullInt32{
+					Int32: int32(t.TeacherIds[1]), Valid: true,
+				}
+			}
+			dels = append(dels, tim)
+		}
+		recoverAdditional = func() {
+			_, err = db.Exec("INSERT INTO additional_timetable"+
+				"(id,duration_id,class_id,teacher_id,subject_id,frame_id,day,add_teacher_id) VALUES "+
+				"(:id,:duration_id,:class_id,:teacher_id,:subject_id,:frame_id,:day,:add_teacher_id)",
+				dels,
+			)
+			if err != nil {
+				log.Printf("Critical Error: %v", err)
+			}
+		}
+		recover := func() {
+			recoverNormal()
+			recoverAdditional()
+		}
+		rnum, err := res.RowsAffected()
+		if err != nil {
+			recover()
+			return errors.ErrorWrap(err)
+		}
+		if int(rnum) != len(add) {
+			recover()
+			return errors.ErrorWrap(err)
+		}
+	}
+
+	// database に追加
+	recover := func() {
+		recoverNormal()
+		recoverAdditional()
+	}
+	{
+		var inserts []AdditionalTimetable
+		for _, mv := range move {
+			t := mv.Unit
+			tim := AdditionalTimetable{
+				NormalTimetable: NormalTimetable{
+					DurationId:   t.DurationId,
+					ClassId:      t.ClassId,
+					TeacherId:    t.TeacherIds[0],
+					SubjectId:    t.SubjectId,
+					FrameId:      mv.FrameId,
+					PlaceId:      t.PlaceId,
+					AddTeacherId: sql.NullInt32{Int32: 0, Valid: false},
+				},
+				Day: mv.Day,
+			}
+			if len(t.TeacherIds) == 2 {
+				tim.AddTeacherId = sql.NullInt32{
+					Int32: int32(t.TeacherIds[1]), Valid: true,
+				}
+			}
+			inserts = append(inserts, tim)
+		}
+		_, err := db.Exec("INSERT INTO additional_timetable"+
+			"(duration_id,class_id,teacher_id,subject_id,frame_id,day,add_teacher_id) VALUES "+
+			"(:duration_id,:class_id,:teacher_id,:subject_id,:frame_id,:day,:add_teacher_id)",
+			inserts,
+		)
+		if err != nil {
+			recover()
+			return errors.ErrorWrap(err)
+		}
+	}
+
+	return nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"timetable/database"
 	"timetable/solve"
 	"timetable/usecase"
+
+	"github.com/joho/godotenv"
 )
 
 func init() {
@@ -44,9 +47,23 @@ func main() {
 	usecase.Db_timetabale = &database.DatabaseTimetable{}
 	usecase.Solver = &solve.SolverClass{}
 
+	f := flag.String("mode", "normal", "実行モード")
+	flag.Parse()
+
+	if *f == "init-holiday" {
+		database.SetHoliday()
+		return
+	}
+
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	// test()
 
 	http.Handle("/", http.FileServer(http.Dir("../../front")))
+	http.HandleFunc("/api/login", communicate.LoginHandle)
 	http.HandleFunc("/api/timetable/class", communicate.ClassTimetableHandle)
 	http.HandleFunc("/api/timetable/teacher", communicate.TeacherTimetableHandle)
 	http.HandleFunc("/api/timetable/change", communicate.ChangeTimetableHandle)
@@ -56,7 +73,7 @@ func main() {
 	log.Print("start")
 	port, ok := os.LookupEnv("PORT")
 	if !ok {
-		port = "54321"
+		port = "80"
 	}
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
