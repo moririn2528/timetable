@@ -241,6 +241,9 @@ func (dc *DatabaseTimetable) GetTimetable(
 			&t.SubjectId, &t.SubjectName, &teach_id, &teach_name,
 			&t.Day, &teach2_id, &teach2_name,
 		)
+		if err != nil {
+			return res, errors.ErrorWrap(err)
+		}
 		t.TeacherIds = []int{teach_id}
 		t.TeacherNames = []string{teach_name}
 		if teach2_id.Valid {
@@ -251,9 +254,6 @@ func (dc *DatabaseTimetable) GetTimetable(
 			t.TeacherNames = append(t.TeacherNames, teach2_name.String)
 		}
 		t.Id = parseAdditional2id(t.Id, t.Day)
-		if err != nil {
-			return res, errors.ErrorWrap(err)
-		}
 		additional_timetable_temp = append(additional_timetable_temp, t)
 	}
 
