@@ -41,7 +41,7 @@ jobs:
             - uses: actions/checkout@v3
             - name: test
               working-directory: ./api/go
-              run: go test ./... -v
+              run: go test `go list ./... | grep -v database` -v
 
     lint:
         needs: setup

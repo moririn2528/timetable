@@ -26,7 +26,10 @@ func login(w http.ResponseWriter, req *http.Request) error {
 		return errors.ErrorWrap(err)
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(token))
+	_, err = w.Write([]byte(token))
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
 	return nil
 }
 

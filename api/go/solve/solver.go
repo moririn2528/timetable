@@ -553,13 +553,6 @@ func getAvoidCost(
 	return avoid, nil
 }
 
-func (*calcCost) getAvoidCost(avoid int) int {
-	if avoid > 5 {
-		return INF
-	}
-	return avoid * 10
-}
-
 //idxs: 使えるコマの index
 func getCost(
 	units *[D][P][]int,
