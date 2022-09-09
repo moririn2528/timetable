@@ -1,8 +1,7 @@
 version: "3"
 services:
     app:
-        build:
-            context: ../../
+        image: moririn2528/timetable-app:latest
         container_name: app
         environment:
             - PORT
@@ -18,8 +17,7 @@ services:
             - db
 
     db:
-        build:
-            context: ../../api/sql
+        image: moririn2528/timetable-db:latest
         container_name: db
         environment:
             - MYSQL_ROOT_PASSWORD

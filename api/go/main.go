@@ -47,6 +47,7 @@ func main() {
 	usecase.Db_timetabale = &database.DatabaseTimetable{}
 	usecase.Solver = &solve.SolverClass{}
 
+	// parse args for internal command
 	f := flag.String("mode", "normal", "実行モード")
 	flag.Parse()
 
@@ -54,6 +55,7 @@ func main() {
 		database.SetHoliday()
 		return
 	}
+	///////////////////////////
 
 	err := godotenv.Load(".env")
 	if err != nil {
