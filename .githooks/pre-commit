@@ -50,6 +50,13 @@ git diff-index --check --cached $against --
 
 # git secrets
 git secrets --pre_commit_hook -- "$@"
+code=$?
+if [ $code -ne 0 ]; then
+	cat >&2 <<EOF
+Error: git secrets
+EOF
+	exit 1
+fi
 
 # my CI
 git_directory=$(git rev-parse --show-toplevel)

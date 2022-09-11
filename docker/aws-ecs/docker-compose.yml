@@ -1,7 +1,7 @@
 version: "3"
 services:
     app:
-        image: moririn2528/timetable-app:latest
+        image: public.ecr.aws/l1c7c7z7/timetable-app
         container_name: app
         environment:
             - PORT
@@ -17,7 +17,7 @@ services:
             - db
 
     db:
-        image: moririn2528/timetable-db:latest
+        image: public.ecr.aws/l1c7c7z7/timetable-db
         container_name: db
         environment:
             - MYSQL_ROOT_PASSWORD

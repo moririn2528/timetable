@@ -6,3 +6,6 @@
 ```
 git config --local core.hooksPath .githooks
 ```
+
+install git secrets
+https://github.com/awslabs/git-secrets#windows

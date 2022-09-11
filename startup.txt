@@ -1,0 +1,20 @@
+クレジット仕様変更
+ec2 上
+sudo apt install apt-transport-https ca-certificates curl software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu `lsb_release -cs` test"
+sudo apt update
+sudo apt install docker-ce
+
+sudo gpasswd -a $(whoami) docker
+sudo chgrp docker /var/run/docker.sock
+sudo service docker restart
+(一度ログアウト)
+
+scp ファイル
+api/sql/1.sql, my.cnf
+docker/__/.env
+
+mkdir docker/sql-data
+touch docker/__/log/go.log
+chmod 755 my.cnf
