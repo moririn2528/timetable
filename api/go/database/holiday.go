@@ -20,7 +20,10 @@ func SetHoliday() {
 
 	r := csv.NewReader(transform.NewReader(f, japanese.ShiftJIS.NewDecoder()))
 	var vals []string
-	r.Read() // Header 削除
+	_, err = r.Read() // Header 削除
+	if err != nil {
+		log.Fatal(err)
+	}
 	for {
 		record, err := r.Read()
 		if err == io.EOF {

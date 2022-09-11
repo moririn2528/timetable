@@ -1,0 +1,4 @@
+scp api/sql/1.sql aws3:timetable/api/sql/1.sql
+scp api/sql/my.cnf aws3:timetable/api/sql/my.cnf
+
+scp docker/aws/.env aws3:timetable/docker/aws/.env
