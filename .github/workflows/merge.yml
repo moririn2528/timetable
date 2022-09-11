@@ -48,6 +48,7 @@ jobs:
                   chmod 600 private_key
                   ssh -oStrictHostKeyChecking=no ${{ secrets.EC2_USER_NAME }}@${{ secrets.EC2_HOST_NAME }} -i private_key <<EOF
                   cd ~/timetable
+                  git checkout .
                   git checkout moririn
                   git pull
                   cd docker/aws
