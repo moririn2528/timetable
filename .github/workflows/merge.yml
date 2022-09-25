@@ -53,6 +53,8 @@ jobs:
                   git pull
                   cd docker/aws
                   docker compose down
+                  docker pull moririn2528/timetable-app:latest
+                  docker pull moririn2528/timetable-db:latest
                   docker compose up -d
                   EOF
 

@@ -19,6 +19,12 @@ type NormalTimetable struct {
 	PlaceId      int      `json:"place_id"`
 }
 
+type DeletedNormalTimetable struct {
+	Id       int       `json:"id" db:"id"`
+	NormalId int       `json:"normal_id" db:"normal_id"`
+	Day      time.Time `json:"day" db:"day"`
+}
+
 type Timetable struct {
 	NormalTimetable
 	Day time.Time `json:"day"`

@@ -3,9 +3,8 @@ services:
     app:
         image: moririn2528/timetable-app:latest
         container_name: app
-        environment:
-            - PORT
-            - SQL_DSN
+        env_file:
+            - .env
         tty: true # 永続化
         ports:
             - ${PORT}:${PORT}
@@ -16,20 +15,32 @@ services:
         depends_on:
             - db
 
+    app_public:
+        image: moririn2528/timetable-app:latest
+        container_name: app_public
+        env_file:
+            - public.env
+        tty: true # 永続化
+        ports:
+            - ${PORT}:${PORT}
+        volumes:
+            - type: bind
+              source: ./log/go.log
+              target: /api/go/2.log
+        depends_on:
+            - db
+
     db:
         image: moririn2528/timetable-db:latest
         container_name: db
-        environment:
-            - MYSQL_ROOT_PASSWORD
-            - MYSQL_DATABASE
-            - MYSQL_USER
-            - MYSQL_PASSWORD
+        env_file:
+            - .env
         restart: always
         volumes:
             - type: bind
               source: ../sql-data
               target: /var/lib/mysql
             - type: bind
-              source: ../../api/sql/1.sql
-              target: /docker-entrypoint-initdb.d/1.sql
+              source: ../../api/sql/0_init.sql
+              target: /docker-entrypoint-initdb.d/0_init.sql
               read_only: true

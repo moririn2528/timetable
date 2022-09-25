@@ -2,9 +2,8 @@ import { decodeType, record, number, string, array } from "typescript-json-decod
 
 export const server = {
 	get: async function (path: string) {
-		const port = location.port;
-		console.log("http://localhost:" + port + "/api/" + path);
-		const res = await fetch("http://localhost:" + port + "/api/" + path);
+		console.log(location.origin + "/api/" + path);
+		const res = await fetch(location.origin + "/api/" + path);
 		if (!res.ok) {
 			console.error(res);
 			throw `response error, code: ${res.status}`;
