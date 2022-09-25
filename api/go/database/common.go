@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -13,31 +14,25 @@ var (
 	db *sqlx.DB
 )
 
-func init() {
-	sql_dsn, ok := os.LookupEnv("SQL_DSN")
-	// if ok: execute in docker
-	if !ok {
+func Init() {
+	env := os.Getenv("EXEC_ENV")
+	host := ""
+
+	if env == "local" {
 		// execute in local
-		file, err := os.Open("database/dsn.secret")
-		if err != nil {
-			log.Printf("dsn file open warning, %v", err)
-			file, err = os.Open("dsn.secret")
-			if err != nil {
-				log.Printf("dsn file open error, %v", err)
-				return
-			}
-		}
-		buf := make([]byte, 1024)
-		n, err := file.Read(buf)
-		if err != nil {
-			log.Printf("dsn file read error, %v", err)
-			return
-		}
-		sql_dsn = string(buf[:n])
+		host = "localhost"
+	} else if env == "docker" {
+		// execute in docker
+		host = "db"
+	} else {
+		log.Fatal("EXEC_ENV should be local or docker")
 	}
 	var err error
-	for i := 0; i < 10; i++ {
-		db, err = sqlx.Connect("mysql", sql_dsn)
+	for i := 0; i < 30; i++ {
+		db, err = sqlx.Connect("mysql", fmt.Sprintf(
+			"%v:%v@tcp(%v:3306)/%v?parseTime=true&loc=Local",
+			os.Getenv("MYSQL_USER"), os.Getenv("MYSQL_PASSWORD"), host, os.Getenv("MYSQL_DATABASE"),
+		))
 		if err == nil {
 			break
 		}

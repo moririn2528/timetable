@@ -28,6 +28,15 @@ func init() {
 		loc = time.FixedZone(location, 9*60*60)
 	}
 	time.Local = loc
+
+	_, err = os.Stat(".env")
+	if !os.IsNotExist(err) {
+		err = godotenv.Load(".env")
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+	database.Init()
 }
 
 // func test() {
@@ -56,11 +65,6 @@ func main() {
 		return
 	}
 	///////////////////////////
-
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalln(err)
-	}
 
 	// test()
 

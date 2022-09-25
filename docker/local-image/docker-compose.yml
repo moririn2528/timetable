@@ -3,9 +3,8 @@ services:
     app:
         image: moririn2528/timetable-app:latest
         container_name: app
-        environment:
-            - PORT
-            - SQL_DSN
+        env_file:
+            - .env
         tty: true # 永続化
         ports:
             - ${PORT}:${PORT}
@@ -30,6 +29,6 @@ services:
               source: ../sql-data
               target: /var/lib/mysql
             - type: bind
-              source: ../../api/sql/1.sql
-              target: /docker-entrypoint-initdb.d/1.sql
+              source: ../../api/sql/0_init.sql
+              target: /docker-entrypoint-initdb.d/0_init.sql
               read_only: true

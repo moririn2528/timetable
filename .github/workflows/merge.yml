@@ -2,7 +2,7 @@ name: CD to EC2
 
 on:
     pull_request:
-        branches: [main]
+        branches: [main_temp_off] # gcp に移行出来ていないので一時的に停止
         types: [closed]
 
     workflow_dispatch:
@@ -53,6 +53,8 @@ jobs:
                   git pull
                   cd docker/aws
                   docker compose down
+                  docker pull moririn2528/timetable-app:latest
+                  docker pull moririn2528/timetable-db:latest
                   docker compose up -d
                   EOF
 

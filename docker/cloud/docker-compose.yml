@@ -1,0 +1,58 @@
+version: "3"
+services:
+    app:
+        image: moririn2528/timetable-app:latest
+        container_name: app
+        env_file:
+            - .env
+        tty: true # 永続化
+        ports:
+            - ${PORT}:${PORT}
+        volumes:
+            - type: bind
+              source: ./log/go.log
+              target: /api/go/1.log
+        depends_on:
+            - db
+
+    app_public:
+        image: moririn2528/timetable-app:latest
+        container_name: app_public
+        env_file:
+            - public.env
+        tty: true # 永続化
+        ports:
+            - ${PUBLIC_PORT}:${PUBLIC_PORT}
+        volumes:
+            - type: bind
+              source: ./log/go-public.log
+              target: /api/go/1.log
+        depends_on:
+            - db
+
+    db:
+        image: moririn2528/timetable-db:latest
+        container_name: db
+        env_file:
+            - .env
+        restart: always
+        volumes:
+            - type: bind
+              source: ../sql-data
+              target: /var/lib/mysql
+            - type: bind
+              source: ../../api/sql/0_create_public.sql
+              target: /docker-entrypoint-initdb.d/0_create_public.sql
+              read_only: true
+            - type: bind
+              source: ../../api/sql/0_init.sql
+              target: /docker-entrypoint-initdb.d/0_init.sql
+              read_only: true
+            - type: bind
+              source: ../../api/sql/0_init_public.sql
+              target: /docker-entrypoint-initdb.d/0_init_public.sql
+              read_only: true
+            - type: bind
+              source: ../../api/sql/9_conceal.sql
+              target: /docker-entrypoint-initdb.d/9_conceal.sql
+              read_only: true
