@@ -2,7 +2,7 @@ name: CD to EC2
 
 on:
     pull_request:
-        branches: [main]
+        branches: [main_temp_off] # gcp に移行出来ていないので一時的に停止
         types: [closed]
 
     workflow_dispatch:

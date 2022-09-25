@@ -11,8 +11,9 @@ sudo chgrp docker /var/run/docker.sock
 sudo service docker restart
 
 mkdir timetable/docker/sql-data
-mkdir timetable/docker/aws/log
-touch timetable/docker/aws/log/go.log
+mkdir timetable/docker/cloud/log
+touch timetable/docker/cloud/log/go.log
+touch timetable/docker/cloud/log/go-public.log
 
 cd ~/timetable/api/sql
 cat 0_init.sql | sed -e "1 s/timetable/timetable_public/g" | sed -e "2 s/timetable/timetable_public/g" >> 0_init_public.sql
