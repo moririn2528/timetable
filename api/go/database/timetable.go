@@ -427,6 +427,7 @@ func (dc *DatabaseTimetable) GetTimetable(
 func (dc *DatabaseTimetable) MoveTimetable(
 	move []usecase.TimetableMove,
 ) error {
+	// TODO: database トランザクションにしたい
 	// database と move の相違がないか調べる
 	equal_teacher := func(t []int, t1 int, t2a sql.NullInt32) bool {
 		if len(t) == 0 || len(t) > 2 {

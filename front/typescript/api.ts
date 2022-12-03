@@ -10,6 +10,27 @@ export const server = {
 		}
 		return res.json();
 	},
+
+	post: async function (path: string, data: any) {
+		console.log(location.origin + "/api/" + path);
+		const res = await fetch(location.origin + "/api/" + path, {
+			method: "POST",
+			mode: "same-origin",
+			cache: "no-cache",
+			credentials: "same-origin",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			redirect: "follow",
+			referrerPolicy: "no-referrer",
+			body: JSON.stringify(data),
+		});
+		if (!res.ok) {
+			console.error(res);
+			throw `response error, code: ${res.status}`;
+		}
+		return res.json();
+	},
 };
 export const sleep = (waitTime: number) => new Promise((resolve) => setTimeout(resolve, waitTime));
 

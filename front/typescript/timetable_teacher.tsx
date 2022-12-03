@@ -67,6 +67,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 		const [change_units, setChangeUnits] = React.useState<TimetableMoveType[]>([]);
 		const [change_error, setChangeError] = React.useState<string | undefined>();
 		const [on_load, setOnLoad] = React.useState<Boolean>(false);
+		const [changed, setChangedFlag] = React.useState<Boolean>(false);
 
 		const calc = () => {
 			setOnLoad(true);
@@ -81,6 +82,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 					setChangeUnits(data);
 					setChangeError(undefined);
 					setOnLoad(false);
+					setChangedFlag(false);
 				})
 				.catch((e) => {
 					setChangeUnits([]);
@@ -92,6 +94,23 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 		const buttonDisplay = () => {
 			props.display_changes(change_units);
 		};
+		const changeTimetable = () => {
+			setChangedFlag((prev) => {
+				if (prev) {
+					return true;
+				}
+				server
+					.post("timetable/change", change_units)
+					.then(() => {
+						console.log("変更されました");
+					})
+					.catch((e) => {
+						console.log("変更エラー", e);
+					});
+				return true;
+			});
+		};
+
 		return (
 			<div>
 				{!on_load && props.select_units.length > 0 ? (
@@ -99,6 +118,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 						<button onClick={calc}>計算</button>
 						<button onClick={props.clear_units}>クリア</button>
 						<button onClick={buttonDisplay}>描画</button>
+						<button onClick={changeTimetable}>変更</button>
 					</div>
 				) : (
 					<div>
@@ -131,6 +151,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 		avoids: number[];
 		selected_units: BanUnit[];
 		change_units: TimetableMoveType[];
+		changed: boolean;
 	};
 
 	class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
@@ -147,6 +168,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 				avoids: new Array(D * P).fill(0),
 				selected_units: [],
 				change_units: [],
+				changed: false,
 			};
 			this.setUnits = this.setUnits.bind(this);
 			this.setAvoids = this.setAvoids.bind(this);
@@ -333,6 +355,7 @@ import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetable
 			const clear_units = () =>
 				this.setState({
 					selected_units: [],
+					changed: false,
 				});
 			const display_changes = (move: TimetableMoveType[]) => {
 				this.setState((prev) => {
