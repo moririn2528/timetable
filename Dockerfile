@@ -1,9 +1,8 @@
-FROM golang:1.18.1
+FROM golang:1.20
 RUN apt-get update && apt-get install git
 RUN mkdir -p /api/go
-WORKDIR /api/go
-COPY api/go .
+WORKDIR /api
 RUN mkdir -p /front
-COPY front /front
-RUN go get -d -v ./...
-CMD ["go","run","main.go"]
+COPY ./api/go/start.sh .
+RUN chmod +x start.sh
+CMD ["./start.sh"]

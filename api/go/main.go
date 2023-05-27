@@ -17,11 +17,14 @@ import (
 
 func init() {
 	const location = "Asia/Tokyo"
-	f, err := os.Create("1.log")
-	if err != nil {
-		panic(err)
+	dev, ok := os.LookupEnv("EXEC_ENV")
+	if !(ok && dev == "docker") {
+		f, err := os.Create("1.log")
+		if err != nil {
+			panic(err)
+		}
+		log.SetOutput(f)
 	}
-	log.SetOutput(f)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	loc, err := time.LoadLocation(location)
 	if err != nil {
