@@ -11,9 +11,6 @@ services:
             - ${PORT}:${PORT}
         volumes:
             - type: bind
-              source: ./log/go.log
-              target: /api/go/1.log
-            - type: bind
               source: ../../api/go
               target: /api/go
             - type: bind

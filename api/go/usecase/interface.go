@@ -1,6 +1,9 @@
 package usecase
 
-import "time"
+import (
+	"time"
+	"timetable/library/logging"
+)
 
 type Frame struct {
 	Id      int
@@ -51,4 +54,5 @@ var (
 	Db_timetabale DatabaseTimetable
 	Db_any        DatabaseAny
 	Solver        SolverClass
+	logger        *logging.Logger = logging.NewLogger()
 )

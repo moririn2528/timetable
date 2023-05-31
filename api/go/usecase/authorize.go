@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"crypto/sha256"
-	"log"
 	"os"
 	"time"
 
@@ -50,7 +49,7 @@ func Login(user User, password string) (string, error) {
 	if err != nil {
 		return "", errors.ErrorWrap(err)
 	}
-	log.Printf("login success: id = %v, name = %v", user.Id, user.Name)
+	logger.Infof("login success: id = %v, name = %v", user.Id, user.Name)
 	token, err := createToken(user)
 	if err != nil {
 		return "", errors.ErrorWrap(err)
@@ -65,7 +64,7 @@ func VerifyToken(token_string string) (*jwt.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println(token.Claims)
+	logger.Debug(token.Claims)
 	return token, nil
 }
 
@@ -75,6 +74,6 @@ func Register(user User, password string) error {
 	if err != nil {
 		return errors.ErrorWrap(err)
 	}
-	log.Printf("register success: id = %v, name = %v", user.Id, user.Name)
+	logger.Infof("register success: id = %v, name = %v", user.Id, user.Name)
 	return nil
 }

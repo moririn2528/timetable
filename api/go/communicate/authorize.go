@@ -1,7 +1,6 @@
 package communicate
 
 import (
-	"log"
 	"net/http"
 
 	"timetable/errors"
@@ -48,9 +47,9 @@ func LoginHandle(w http.ResponseWriter, req *http.Request) {
 	my_err, ok := err.(*errors.MyError)
 	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Print("wrap error")
+		logger.Error("wrap error")
 		return
 	}
 	w.WriteHeader(my_err.GetCode())
-	log.Print(my_err.Error())
+	logger.Error(my_err.Error())
 }

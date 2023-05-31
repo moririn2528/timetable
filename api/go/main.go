@@ -9,10 +9,15 @@ import (
 
 	"timetable/communicate"
 	"timetable/database"
+	"timetable/library/logging"
 	"timetable/solve"
 	"timetable/usecase"
 
 	"github.com/joho/godotenv"
+)
+
+var (
+	logger *logging.Logger = logging.NewLogger()
 )
 
 func init() {
@@ -47,7 +52,7 @@ func init() {
 // 	if err != nil {
 // 		log.Fatal(err)
 // 	}
-// 	log.Println("ok!")
+// 	logger.Info("ok!")
 // 	os.Exit(1)
 // }
 
@@ -79,7 +84,7 @@ func main() {
 	http.HandleFunc("/api/class", communicate.Class_structure)
 	http.HandleFunc("/api/teacher/avoid", communicate.TeacherAvoidHandle)
 	http.HandleFunc("/api/teacher", communicate.TeacherHandle)
-	log.Print("start")
+	logger.Info("start")
 	port, ok := os.LookupEnv("PORT")
 	if !ok {
 		port = "80"

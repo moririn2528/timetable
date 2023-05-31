@@ -5,4 +5,4 @@ WORKDIR /api
 RUN mkdir -p /front
 COPY ./api/go/start.sh .
 RUN chmod +x start.sh
-CMD ["./start.sh"]
+CMD ["bash"]

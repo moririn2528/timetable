@@ -46,3 +46,13 @@ const inputGraphDecoder = record({
 export const getClass = () => {
 	return server.get("class").then(inputGraphDecoder);
 };
+
+
+export type TeacherType = decodeType<typeof inputTeacherDecoder>;
+const inputTeacherDecoder = record({
+	id: number,
+	name: string,
+});
+export async function getTeachers() {
+	return server.get("teacher").then(array(inputTeacherDecoder));
+}

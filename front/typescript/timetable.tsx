@@ -25,6 +25,17 @@ export const timetableMoveDecoder = record({
 	frame_id: number,
 });
 
+export const TimetableStyle: React.CSSProperties = {
+	borderCollapse: "collapse",
+	textAlign: "center",
+}
+
+export const TimetableUnitStyle: React.CSSProperties = {
+	border: "1px dotted #333",
+	width: 80,
+	height: 70,
+}
+
 export type TimetableUnitProps = {
 	units: TimetableType[];
 	color1?: string;
@@ -34,9 +45,15 @@ export type TimetableUnitProps = {
 
 export const TimetableUnit = (props: TimetableUnitProps) => {
 	const style1: React.CSSProperties = {
+		border: "1px dotted #333",
+		height: "40px",
+		fontSize: "20px",
 		backgroundColor: props.color1,
 	};
 	const style2: React.CSSProperties = {
+		border: "1px dotted #333",
+		height: "15px",
+		fontSize: "10px",
 		backgroundColor: props.color2,
 	};
 	let values: string[] = [];
@@ -48,7 +65,13 @@ export const TimetableUnit = (props: TimetableUnitProps) => {
 		values = [l == 0 ? "" : String(l), "", ""];
 	}
 	return (
-		<table onClick={props.onClick}>
+		<table onClick={props.onClick} style={{
+			borderCollapse: "collapse",
+			border: "1px solid #333",
+			width: "100%",
+			height: "100%",
+			userSelect: "none",
+		}}>
 			<tbody>
 				<tr>
 					<td className="subject" style={style1}>
@@ -90,7 +113,9 @@ export const TimetablePreviewDate = (props: { today: Date; date: Date; setDate: 
 		props.setDate(d);
 	};
 	return (
-		<div className="flex">
+		<div style={{
+			display: "flex",
+		}}>
 			<div onClick={setLastWeek}>{"先週<"}</div>
 			<div onClick={setNextWeek}>{">来週"}</div>
 		</div>

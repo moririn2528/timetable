@@ -3,7 +3,6 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"sort"
@@ -617,7 +616,7 @@ func (dc *DatabaseTimetable) MoveTimetable(
 				return errors.NewError("assert error")
 			}
 			t2 := nor[idx]
-			log.Println(t1, t2)
+			logger.Error(t1, t2)
 			if !(t1.Id == parse2DatabaseId(t2.Id) && t1.DurationId == t2.DurationId && t1.ClassId == t2.ClassId && t1.SubjectId == t2.SubjectId &&
 				t1.PlaceId == t2.PlaceId && equal_teacher(t2.TeacherIds, t1.TeacherId, t1.AddTeacherId) && t1.FrameId/usecase.PERIOD == int(t2.Day.Weekday())-1) {
 				return errors.NewError(http.StatusBadRequest, "timetable is differenc")

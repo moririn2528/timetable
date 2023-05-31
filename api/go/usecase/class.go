@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"fmt"
-	"log"
 
 	"timetable/errors"
 	"timetable/library/bitset"
@@ -70,7 +69,7 @@ func (graph *ClassGraph) Valid() bool {
 }
 
 func (graph *ClassGraph) initDescendants() {
-	log.Print("test")
+	logger.Debug("test")
 	n := len(graph.Nodes)
 	vec := []int{}
 	deg := make([]int, n)
