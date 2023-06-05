@@ -1,6 +1,7 @@
 package communicate
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -45,6 +46,29 @@ func getTeacherAvoid(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
+type TeacherAvoidForm struct {
+	Avoids    []usecase.ChangingTeacherAvoid `json:"avoids"`
+	TeacherId int                            `json:"teacher_id"`
+	Weekly    bool                           `json:"weekly"`
+}
+
+func setTeacherAvoid(w http.ResponseWriter, req *http.Request) error {
+	var input TeacherAvoidForm
+	err := json.NewDecoder(req.Body).Decode(&input)
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
+	if input.Weekly {
+		err = usecase.SetTeacherWeeklyAvoid(input.TeacherId, input.Avoids)
+	} else {
+		err = usecase.SetTeacherAvoid(input.TeacherId, input.Avoids)
+	}
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
+	return nil
+}
+
 func getTeacher(w http.ResponseWriter, req *http.Request) error {
 	type Teacher struct {
 		Id   int    `json:"id"`
@@ -75,12 +99,13 @@ func getTeacher(w http.ResponseWriter, req *http.Request) error {
 	}
 	return nil
 }
-
 func TeacherAvoidHandle(w http.ResponseWriter, req *http.Request) {
 	var err error
 	switch req.Method {
 	case "GET":
 		err = getTeacherAvoid(w, req)
+	case "POST":
+		err = setTeacherAvoid(w, req)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		return

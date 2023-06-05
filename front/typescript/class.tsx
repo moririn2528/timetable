@@ -70,7 +70,7 @@ function str2posMap(data_str: string) {
 	const a = data_str.split("A");
 	const id_arr = a[0].split(",");
 	const pos_arr = a[1].split(",");
-	console.assert(id_arr.length == pos_arr.length);
+	console.assert(id_arr.length === pos_arr.length);
 	const poss = pos_arr.map((str) => {
 		const xy = str.split(":");
 		return { x: Number(xy[0]), y: Number(xy[1]) };

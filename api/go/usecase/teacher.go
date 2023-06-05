@@ -17,33 +17,53 @@ type TeacherAvoidRes struct {
 }
 
 func GetTeacherAvoid(id int, date time.Time, end_date time.Time) ([]TeacherAvoidRes, error) {
-	teach, err := Db_any.GetTeacher()
+	res, err := Db_any.GetTeacherAvoid(id, date, end_date)
 	if err != nil {
 		return nil, errors.ErrorWrap(err)
+	}
+	return res, nil
+}
+
+type ChangingTeacherAvoid struct {
+	Date   time.Time `json:"date"`
+	Period int       `json:"period"`
+	Avoid  int       `json:"avoid"`
+}
+
+// id: teacher id
+func SetTeacherWeeklyAvoid(id int, avoids []ChangingTeacherAvoid) error {
+	teach, err := Db_any.GetTeacher()
+	if err != nil {
+		return errors.ErrorWrap(err)
 	}
 	for _, t := range teach {
 		if t.Id != id {
 			continue
 		}
-		var res []TeacherAvoidRes
-		for d := date; d.Before(end_date); d = d.AddDate(0, 0, 1) {
-			dayweek := int(d.Weekday())
+		for _, av := range avoids {
+			dayweek := int(av.Date.Weekday())
 			if dayweek == 0 {
-				continue
+				return errors.NewError(400, "input error")
 			}
-			av := TeacherAvoidRes{
-				Day:   d,
-				Avoid: make([]int, PERIOD),
+			fid := (dayweek-1)*PERIOD + av.Period
+			if len(t.Avoid) <= fid {
+				return errors.NewError(400, "input error")
 			}
-			for i := 0; i < PERIOD; i++ {
-				fid := (dayweek-1)*PERIOD + i
-				if fid < len(t.Avoid) {
-					av.Avoid[i] = t.Avoid[fid]
-				}
-			}
-			res = append(res, av)
+			t.Avoid[fid] = av.Avoid
 		}
-		return res, nil
+		err = Db_any.UpdateTeacher(t)
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+		return nil
 	}
-	return nil, errors.NewError(400, "input error")
+	return errors.NewError(400, "input error")
+}
+
+func SetTeacherAvoid(id int, avoids []ChangingTeacherAvoid) error {
+	err := Db_any.SetTeacherAvoid(id, avoids)
+	if err != nil {
+		return errors.ErrorWrap(err)
+	}
+	return nil
 }

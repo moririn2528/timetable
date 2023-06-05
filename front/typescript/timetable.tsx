@@ -41,6 +41,7 @@ export type TimetableUnitProps = {
 	color1?: string;
 	color2?: string;
 	onClick?: () => void;
+	onRightClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
 };
 
 export const TimetableUnit = (props: TimetableUnitProps) => {
@@ -57,21 +58,24 @@ export const TimetableUnit = (props: TimetableUnitProps) => {
 		backgroundColor: props.color2,
 	};
 	let values: string[] = [];
-	if (props.units.length == 1) {
+	if (props.units.length === 1) {
 		const u = props.units[0];
 		values = [u.subject_name, u.class_name, u.teacher_name.join(",")];
 	} else {
 		const l = props.units.length;
-		values = [l == 0 ? "" : String(l), "", ""];
+		values = [l === 0 ? "" : String(l), "", ""];
 	}
 	return (
-		<table onClick={props.onClick} style={{
-			borderCollapse: "collapse",
-			border: "1px solid #333",
-			width: "100%",
-			height: "100%",
-			userSelect: "none",
-		}}>
+		<table
+			onClick={props.onClick}
+			onContextMenu={props.onRightClick}
+			style={{
+				borderCollapse: "collapse",
+				border: "1px solid #333",
+				width: "100%",
+				height: "100%",
+				userSelect: "none",
+			}}>
 			<tbody>
 				<tr>
 					<td className="subject" style={style1}>

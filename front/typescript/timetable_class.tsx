@@ -158,7 +158,7 @@ class Search extends React.Component<SearchProps, SearchState> {
 			for (let i = 0; i + s < phrase.length; i++) {
 				let t = 0;
 				for (let j = 0; j < name.length && i + t < phrase.length; j++) {
-					if (name[j] == phrase[i + t]) t++;
+					if (name[j] === phrase[i + t]) t++;
 				}
 				s = Math.max(s, t);
 			}
@@ -234,7 +234,7 @@ class Timetable extends React.Component<TimetableProps, TimetableState> {
 	}
 
 	getDaystr(day: number) {
-		if (day == 0) return "日";
+		if (day === 0) return "日";
 		return this.day_weak_strs[day - 1];
 	}
 
@@ -251,7 +251,7 @@ class Timetable extends React.Component<TimetableProps, TimetableState> {
 						}
 						date.setDate(date.getDate() + dif);
 						return (
-							<th key={idx} style={{ backgroundColor: dif == 0 ? "#95f9ef" : "#ffffff" }}>
+							<th key={idx} style={{ backgroundColor: dif === 0 ? "#95f9ef" : "#ffffff" }}>
 								{date.getMonth() + 1}/{date.getDate()}({day_str})
 							</th>
 						);
@@ -307,7 +307,7 @@ class Timetable extends React.Component<TimetableProps, TimetableState> {
 		this.setState({ units: units });
 	}
 	getTimetable(selected_classes: SimpleData[]) {
-		if (selected_classes.length == 0) {
+		if (selected_classes.length === 0) {
 			this.setUnits([]);
 			return;
 		}

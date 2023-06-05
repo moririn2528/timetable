@@ -1,6 +1,6 @@
 import { server, jsdate, TeacherType } from "./api";
-import { decodeType, record, number, string, array, undef, dict } from "typescript-json-decoder";
-import React from "react";
+import { decodeType, record, number, string, array, undef, dict, boolean } from "typescript-json-decoder";
+import React, { useRef } from "react";
 import { TimetableType, TimetableMoveType, date2str, timetableDecoder, timetableMoveDecoder, TimetableUnit, TimetableUnitProps, TimetablePreviewDate, TimetableStyle, TimetableUnitStyle } from "./timetable";
 
 const PERIOD = 7; // 1日の最大コマ数
@@ -15,15 +15,34 @@ const teacherAvoidDecoder = record({
 	avoid: array(number),
 });
 
+type SetTeacherAvoidFormType = decodeType<typeof setTeacherAvoidFormDecoder>;
+const avoidFrameDecoder = record({
+	date: jsdate,
+	period: number,
+	avoid: number,
+})
+const setTeacherAvoidFormDecoder = record({
+	avoids: array(avoidFrameDecoder),
+	teacher_id: number,
+	weekly: boolean,
+})
+
 type ChangeAvoidType = {
-	day: Date;
-	frame: number;
+	date: Date;
+	period: number;
 	avoid: number;
+}
+
+enum Mode {
+	Timetable,
+	TeacherDailyAvoid,
+	TeacherWeeklyAvoid,
 }
 
 type TeacherTimetableUnitProps = TimetableUnitProps & {
 	avoid: number;
 	color?: string;
+	mode: Mode;
 };
 
 const TeacherTimetableUnit = (props: TeacherTimetableUnitProps) => {
@@ -54,14 +73,42 @@ const TeacherTimetableUnit = (props: TeacherTimetableUnitProps) => {
 			col = "#cccccc";
 			break;
 	}
+	const units = [...props.units];
+	if (props.mode === Mode.TeacherDailyAvoid || props.mode === Mode.TeacherWeeklyAvoid) {
+		if (units.length >= 1) units.splice(1);
+		else {
+			units.push({
+				id: -1,
+				class_id: -1,
+				class_name: "",
+				duration_id: -1,
+				duration_name: "",
+				frame_id: -1,
+				subject_id: -1,
+				subject_name: "",
+				teacher_id: [],
+				teacher_name: [],
+				place_id: -1,
+				day: new Date(),
+			});
+		}
+		units[0].subject_name = props.avoid.toString();
+	}
 
-	return <TimetableUnit units={props.units} onClick={props.onClick} color1={props.color} color2={col} />;
+	return <TimetableUnit units={units} onClick={props.onClick} onRightClick={props.onRightClick} color1={props.color} color2={col} />;
 };
 
-const SearchChange = (props: { teacher_id: number; select_units: BanUnit[]; date: Date; clear_units: () => void; display_changes: (param: TimetableMoveType[]) => void }) => {
+const SearchChange = (props: {
+	teacher_id: number;
+	select_units: BanUnit[];
+	date: Date;
+	clear_units: () => void;
+	display_changes: (param: TimetableMoveType[]) => void;
+	mode: Mode;
+	change_avoids: ChangeAvoidType[];
+}) => {
 	const day_weak_strs = ["月", "火", "水", "木", "金", "土"];
 	const [change_units, setChangeUnits] = React.useState<TimetableMoveType[]>([]);
-	const [change_avoids, setChangeAvoids] = React.useState<ChangeAvoidType[]>([]);
 	const [change_error, setChangeError] = React.useState<string | undefined>();
 	const [on_load, setOnLoad] = React.useState<Boolean>(false);
 	const [changed, setChangedFlag] = React.useState<Boolean>(false);
@@ -108,20 +155,50 @@ const SearchChange = (props: { teacher_id: number; select_units: BanUnit[]; date
 		});
 	};
 
-	return (
-		<div>
-			{!on_load && props.select_units.length > 0 ? (
-				<div>
+	const registorAvoids = () => {
+		const avoid_form: SetTeacherAvoidFormType = {
+			teacher_id: props.teacher_id,
+			weekly: props.mode === Mode.TeacherWeeklyAvoid,
+			avoids: props.change_avoids.map((val) => {
+				return {
+					date: val.date,
+					period: val.period,
+					avoid: val.avoid,
+				}
+			})
+		}
+		console.log(avoid_form);
+		server.post("teacher/avoid", avoid_form).then(() => {
+			window.location.reload();
+		}).catch((e) => {
+			console.log("変更エラー", e);
+		})
+	}
+
+	const calc_buttons = () => {
+		if (props.mode === Mode.Timetable) {
+			if (!on_load && props.select_units.length > 0) {
+				return <div>
 					<button onClick={calc}>計算</button>
 					<button onClick={props.clear_units}>クリア</button>
 					<button onClick={buttonDisplay}>描画</button>
 					<button onClick={changeTimetable}>変更</button>
 				</div>
-			) : (
-				<div>
+			} else {
+				return <div>
 					<button onClick={buttonDisplay}>描画</button>
 				</div>
-			)}
+			}
+		}
+		if (props.change_avoids.length === 0) return <></>
+		return <div>
+			<button onClick={registorAvoids}>登録</button>
+		</div>
+	}
+
+	return (
+		<div>
+			{calc_buttons()}
 			{change_error != undefined ? "エラー: " + change_error : ""}
 			<br />
 			結果: {on_load ? "計算中" : ""}
@@ -142,6 +219,7 @@ const SearchChange = (props: { teacher_id: number; select_units: BanUnit[]; date
 type TimetableProps = {
 	teacher: number;
 	date: Date;
+	mode: Mode;
 };
 type TimetableState = {
 	units: TimetableType[][];
@@ -172,11 +250,12 @@ class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
 		this.setUnits = this.setUnits.bind(this);
 		this.setAvoids = this.setAvoids.bind(this);
 		this.printUnit = this.printUnit.bind(this);
+		this.printAvoidUnit = this.printAvoidUnit.bind(this);
 		this.getTimetable();
 	}
 
 	getDaystr(day: number) {
-		if (day == 0) return "日";
+		if (day === 0) return "日";
 		return TeacherTimetable.day_weak_strs[day - 1];
 	}
 
@@ -193,7 +272,7 @@ class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
 						}
 						date.setDate(date.getDate() + dif);
 						return (
-							<th key={idx} style={{ backgroundColor: dif == 0 ? "#95f9ef" : "#ffffff" }}>
+							<th key={idx} style={{ backgroundColor: dif === 0 ? "#95f9ef" : "#ffffff" }}>
 								{date.getMonth() + 1}/{date.getDate()}({day_str})
 							</th>
 						);
@@ -217,7 +296,7 @@ class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
 					period: p,
 				};
 				const idx = select_units.findIndex((u) => {
-					return u.date.getTime() == date.getTime() && u.period == p;
+					return u.date.getTime() === date.getTime() && u.period === p;
 				});
 				if (idx != -1) {
 					// erase select_units[idx]
@@ -239,11 +318,67 @@ class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
 			color = "#ffbeba";
 		} else if (change_to) {
 			color = "#b5e1ff";
-		} else if (this.state.selected_units.findIndex((val) => val.date.getTime() == date.getTime() && val.period == p) != -1) {
+		} else if (this.state.selected_units.findIndex((val) => val.date.getTime() === date.getTime() && val.period === p) != -1) {
 			color = "#baefb3";
 		}
 
-		return <TeacherTimetableUnit key={d} units={this.state.units[d * 7 + p]} avoid={this.state.avoids[d * 7 + p]} onClick={onClick} color={color} />;
+		return <TeacherTimetableUnit key={d} units={this.state.units[d * TeacherTimetable.P + p]} avoid={this.state.avoids[d * TeacherTimetable.P + p]} onClick={onClick} color={color} mode={this.props.mode} />;
+	}
+
+	printAvoidUnit(d: number, p: number, mode: Mode) {
+		// day, period
+		const P = TeacherTimetable.P;
+		console.assert(mode === Mode.TeacherDailyAvoid || mode === Mode.TeacherWeeklyAvoid);
+		const date = new Date(this.props.date);
+		let dif = d + 1 - date.getDay();
+		if (dif < 0) dif += 7;
+		date.setDate(date.getDate() + dif);
+
+		const isSameFrame = (unit: ChangeAvoidType) => {
+			if (mode === Mode.TeacherDailyAvoid)
+				return unit.date.getTime() === date.getTime() && unit.period === p;
+			else return unit.date.getDay() === date.getDay() && unit.period === p;
+		}
+
+		const changeAvoid = (add: number, bef: TimetableState) => {
+			const change_avoids = [...bef.change_avoids];
+			const idx = change_avoids.findIndex((u) => isSameFrame(u));
+			if (idx != -1) {
+				const avoid = change_avoids[idx].avoid + add;
+				if (avoid < 0 || 9 < avoid) return null;
+				change_avoids[idx].avoid = avoid;
+				if (change_avoids[idx].avoid === bef.avoids[d * P + p]) {
+					change_avoids.splice(idx, 1);
+				}
+			} else {
+				const avoid = bef.avoids[d * P + p] + add
+				if (avoid < 0 || 9 < avoid) return null;
+				change_avoids.push({
+					date: date,
+					period: p,
+					avoid: avoid,
+				});
+			}
+			return {
+				change_avoids: change_avoids,
+			}
+		}
+		const onClick = () => {
+			this.setState((prevstate) => changeAvoid(1, prevstate));
+		};
+		const onRightClick = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+			e.preventDefault();
+			this.setState((prevstate) => changeAvoid(-1, prevstate));
+		};
+		let color: string | undefined = undefined;
+		let avoid = this.state.avoids[d * P + p];
+		const idx = this.state.change_avoids.findIndex((u) => isSameFrame(u));
+		if (idx != -1) {
+			color = "#baefb3";
+			avoid = this.state.change_avoids[idx].avoid;
+		}
+
+		return <TeacherTimetableUnit key={d} units={this.state.units[d * P + p]} avoid={avoid} onClick={onClick} onRightClick={onRightClick} color={color} mode={this.props.mode} />;
 	}
 
 	getDayIndex(day: Date) {
@@ -281,7 +416,9 @@ class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
 			for (let j = 0; j < D; j++) {
 				table_row.push(
 					<td className="unit" key={j} style={TimetableUnitStyle}>
-						{this.printUnit(j, i, change_from.includes(j * P + i), change_to.includes(j * P + i))}
+						{(this.props.mode === Mode.Timetable) ?
+							this.printUnit(j, i, change_from.includes(j * P + i), change_to.includes(j * P + i)) :
+							this.printAvoidUnit(j, i, this.props.mode)}
 					</td>
 				);
 			}
@@ -359,7 +496,7 @@ class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
 		const display_changes = (move: TimetableMoveType[]) => {
 			this.setState((prev) => {
 				const bef = prev.change_units;
-				if (JSON.stringify(bef) == JSON.stringify(move)) {
+				if (JSON.stringify(bef) === JSON.stringify(move)) {
 					return {
 						change_units: [],
 					};
@@ -378,13 +515,13 @@ class TeacherTimetable extends React.Component<TimetableProps, TimetableState> {
 						{this.printUnits()}
 					</table>
 				</div>
-				<SearchChange teacher_id={this.props.teacher} date={this.props.date} select_units={this.state.selected_units} clear_units={clear_units} display_changes={display_changes} />
+				<SearchChange teacher_id={this.props.teacher} date={this.props.date} select_units={this.state.selected_units} clear_units={clear_units} display_changes={display_changes} mode={this.props.mode} change_avoids={this.state.change_avoids} />
 			</div>
 		);
 	}
 }
 
-export const TeacherTimetableWithDate = (props: { teachers: TeacherType[]; date: Date }) => {
+const TeacherTimetableWithDate = (props: { teachers: TeacherType[]; date: Date; mode: Mode }) => {
 	const [date, setDate] = React.useState(props.date);
 	const [teacher, setTeacher] = React.useState(props.teachers[0].id);
 	const onChange: React.ChangeEventHandler<HTMLSelectElement> = (e) => {
@@ -392,7 +529,8 @@ export const TeacherTimetableWithDate = (props: { teachers: TeacherType[]; date:
 	};
 	return (
 		<div>
-			<TimetablePreviewDate today={props.date} date={date} setDate={setDate} />
+			{(props.mode === Mode.Timetable || props.mode === Mode.TeacherDailyAvoid) ?
+				<TimetablePreviewDate today={props.date} date={date} setDate={setDate} /> : <></>}
 			先生:
 			<select name="teacher" onChange={onChange}>
 				{props.teachers.map((teacher, index) => {
@@ -403,7 +541,53 @@ export const TeacherTimetableWithDate = (props: { teachers: TeacherType[]; date:
 					);
 				})}
 			</select>
-			<TeacherTimetable teacher={teacher} date={date} />
+			<TeacherTimetable teacher={teacher} date={date} mode={props.mode} />
 		</div>
 	);
 };
+
+const ChooseMode = (props: { setMode: (mode: Mode) => void }) => {
+	const data = [
+		{ mode: Mode.Timetable, name: "時間割変更", ref: useRef<HTMLButtonElement>(null) },
+		{ mode: Mode.TeacherDailyAvoid, name: "日ごとの空き", ref: useRef<HTMLButtonElement>(null) },
+		{ mode: Mode.TeacherWeeklyAvoid, name: "週間の空き", ref: useRef<HTMLButtonElement>(null) },
+	]
+	const indicatorRef = useRef<HTMLDivElement>(null);
+	return (
+		<div style={{
+			height: "40px",
+		}}>
+			{data.map((val, index) => {
+				return (
+					<button
+						key={index}
+						ref={val.ref}
+						onClick={() => {
+							props.setMode(val.mode);
+							data.forEach((v) => {
+								v.ref.current!.style.backgroundColor = v.mode === val.mode ? "white" : "lightgray";
+							})
+						}}
+						style={{
+							margin: "0 2px",
+							padding: "0 5px",
+							backgroundColor: val.mode === Mode.Timetable ? "white" : "lightgray",
+							border: "1px solid black",
+						}}
+					>
+						{val.name}
+					</button>
+				);
+			})}
+		</div >
+	);
+}
+
+export const TeacherTimetableInterface = (props: { teachers: TeacherType[] }) => {
+	const [mode, setMode] = React.useState(Mode.Timetable);
+	const date = new Date(2021, 3, 13)
+	return <div>
+		<ChooseMode setMode={setMode} />
+		<TeacherTimetableWithDate teachers={props.teachers} date={date} mode={mode} />
+	</div>
+}

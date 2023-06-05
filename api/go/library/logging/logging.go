@@ -3,7 +3,6 @@ package logging
 import (
 	"log"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 )
@@ -42,8 +41,8 @@ func NewLogger() *Logger {
 
 func getCallerInfo() string {
 	_, file, line, _ := runtime.Caller(2)
-	_, file_name := filepath.Split(file)
-	return file_name + ":" + strconv.Itoa(line)
+	// _, file_name := filepath.Split(file)
+	return file + ":" + strconv.Itoa(line)
 }
 
 func (l *Logger) Debug(v ...interface{}) {

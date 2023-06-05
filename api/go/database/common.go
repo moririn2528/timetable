@@ -49,3 +49,7 @@ func Init() {
 func Close() {
 	db.Close()
 }
+
+func isDate(t time.Time) bool {
+	return t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0
+}

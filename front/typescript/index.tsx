@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from 'react-dom/client';
 import { ClassTimetableWithDate } from "./timetable_class";
-import { TeacherTimetableWithDate } from "./timetable_teacher";
+import { TeacherTimetableInterface } from "./timetable_teacher";
 import { getClass, getTeachers, InputGraphType, TeacherType } from "./api";
 import { GraphComponent } from "./class";
 
@@ -23,7 +23,7 @@ function ScreenWithMenu(props: { classes: InputGraphType, teachers: TeacherType[
             componentToRender = <ClassTimetableWithDate classes={props.classes} date={new Date(2021, 3, 12)} />;
             break;
         case Menu.TeacherTimetable:
-            componentToRender = <TeacherTimetableWithDate teachers={props.teachers} date={new Date(2021, 3, 13)} />;
+            componentToRender = <TeacherTimetableInterface teachers={props.teachers} />;
             break;
         default:
             componentToRender = null;
