@@ -5,13 +5,15 @@ import (
 	"log"
 	"os"
 	"time"
+	"timetable/library/logging"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
 var (
-	db *sqlx.DB
+	db     *sqlx.DB
+	logger *logging.Logger = logging.NewLogger()
 )
 
 func Init() {
@@ -36,7 +38,7 @@ func Init() {
 		if err == nil {
 			break
 		}
-		log.Printf("sql connect tried: %v", i+1)
+		logger.Errorf("sql connect tried: %v", i+1)
 		time.Sleep(time.Second * 2)
 	}
 	if err != nil {
@@ -46,4 +48,8 @@ func Init() {
 
 func Close() {
 	db.Close()
+}
+
+func isDate(t time.Time) bool {
+	return t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 && t.Nanosecond() == 0
 }

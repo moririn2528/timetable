@@ -1,6 +1,9 @@
 package usecase
 
-import "time"
+import (
+	"time"
+	"timetable/library/logging"
+)
 
 type Frame struct {
 	Id      int
@@ -30,6 +33,9 @@ type DatabaseAny interface {
 	GetHolidays() ([]time.Time, error)
 	FindUser(user User, password string) error
 	InsertUser(user User, password string) error
+	GetTeacherAvoid(id int, date time.Time, end_date time.Time) ([]TeacherAvoidRes, error)
+	SetTeacherAvoid(id int, avoids []ChangingTeacherAvoid) error
+	UpdateTeacher(teacher Teacher) error
 }
 
 type SolverClass interface {
@@ -51,4 +57,5 @@ var (
 	Db_timetabale DatabaseTimetable
 	Db_any        DatabaseAny
 	Solver        SolverClass
+	logger        *logging.Logger = logging.NewLogger()
 )

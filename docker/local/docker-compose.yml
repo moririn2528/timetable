@@ -3,18 +3,23 @@ services:
     app:
         build:
             context: ../../
+            dockerfile: local.Dockerfile
         container_name: app
         env_file:
             - .env
-        tty: true # 永続化
+        tty: true
         ports:
             - ${PORT}:${PORT}
         volumes:
             - type: bind
-              source: ./log/go.log
-              target: /api/go/1.log
+              source: ../../api/go
+              target: /api/go
+            - type: bind
+              source: ../../front
+              target: /front
         depends_on:
-            - db
+            db:
+                condition: service_healthy
 
     db:
         build:
@@ -34,3 +39,8 @@ services:
               source: ../../api/sql/0_init.sql
               target: /docker-entrypoint-initdb.d/0_init.sql
               read_only: true
+        healthcheck:
+            test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+            interval: 10s
+            timeout: 5s
+            retries: 20

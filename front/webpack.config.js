@@ -3,16 +3,18 @@ module.exports = {
 	// モジュールバンドルを行う起点となるファイルの指定
 	// 指定できる値としては、ファイル名の文字列や、それを並べた配列やオブジェクト
 	// 下記はオブジェクトとして指定した例
+	mode: "development",
+	devtool: "inline-source-map", // inline- にすると、bundle にソースマップが含まれるため、ファイルサイズが大きくなる
 	entry: {
-		timetable_class: "./typescript/timetable_class.tsx",
-		timetable_teacher: "./typescript/timetable_teacher.tsx",
-		class: "./typescript/class.tsx",
+		main: [
+			"./typescript/index.tsx"
+		]
 	},
 	output: {
 		// モジュールバンドルを行った結果を出力する場所やファイル名の指定
 		// "__dirname"はこのファイルが存在するディレクトリを表すnode.jsで定義済みの定数
-		path: path.join(__dirname, "tsx-js"),
-		filename: "[name].js", // [name]はentryで記述した名前(この例ではbundle）が入る
+		path: __dirname,
+		filename: "bundle.js",
 	},
 	// モジュールとして扱いたいファイルの拡張子を指定する
 	// 例えば「import Foo from './foo'」という記述に対して"foo.ts"という名前のファイルをモジュールとして探す

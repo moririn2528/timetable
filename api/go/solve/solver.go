@@ -3,12 +3,12 @@ package solve
 import (
 	"container/heap"
 	"fmt"
-	"log"
 	"math"
 	"time"
 
 	"timetable/errors"
 	"timetable/library/bitset"
+	"timetable/library/logging"
 	"timetable/usecase"
 )
 
@@ -19,7 +19,8 @@ const (
 )
 
 var (
-	ERR_CANT_SOLVE error = errors.NewError("internal error, dp all INF, can't solve")
+	ERR_CANT_SOLVE error           = errors.NewError("internal error, dp all INF, can't solve")
+	logger         *logging.Logger = logging.NewLogger()
 )
 
 type Heap [][4]int
@@ -43,6 +44,31 @@ func (h *Heap) Pop() interface{} {
 	x := old[n-1]
 	*h = old[:n-1]
 	return x
+}
+
+type TopMoves struct {
+	max_size int
+	costs    []int
+	moves    [][]usecase.TimetableMove
+}
+
+func NewTopMoves(max_size int) *TopMoves {
+	return &TopMoves{
+		max_size: max_size,
+	}
+}
+
+func (t *TopMoves) Append(lis []usecase.TimetableMove, cost int) {
+	for i := 0; i < len(t.costs); i++ {
+		if cost < t.costs[i] {
+			cost, t.costs[i] = t.costs[i], cost
+			lis, t.moves[i] = t.moves[i], lis
+		}
+	}
+	if len(t.costs) < t.max_size {
+		t.costs = append(t.costs, cost)
+		t.moves = append(t.moves, lis)
+	}
 }
 
 func inList(a int, l []int) bool {
@@ -108,6 +134,10 @@ func timetableChangeSolver(cost [][][][]int, start [2]int, units *[D][P][]int) (
 		}
 	}
 
+	get_cost := func(x1 int, y1 int, x2 int, y2 int) int { // cost from (x1,y1) to (x2,y2)
+		return cost[x1][y1][x2][y2] + cost_move*len(units[x1][y1]) + cost_move_day*abs(x2-x1)
+	}
+
 	n := len(cost)
 	if n <= 0 {
 		return nil, errors.NewError("input error, length")
@@ -139,22 +169,16 @@ func timetableChangeSolver(cost [][][][]int, start [2]int, units *[D][P][]int) (
 	h := &Heap{
 		[IDX + 1]int{0, sx, sy, 0},
 	}
-	log.Println("start index", sx, sy)
+	logger.Debug("start index", sx, sy)
 	heap.Init(h)
-	s := INF
-	var ex, ey, ez int
 	for h.Len() > 0 {
 		mc := heap.Pop(h).([IDX + 1]int)
 		c, x, y, z := mc[0], mc[1], mc[2], mc[3]
-		if s <= c {
+		if INF <= c {
 			break
 		}
 		if dp[x][y][z] < c {
 			continue
-		}
-		if c < s && sx == x && sy == y && z > 0 {
-			s = c
-			ex, ey, ez = x, y, z
 		}
 		if sx == x && sy == y && z > 0 {
 			continue
@@ -167,7 +191,7 @@ func timetableChangeSolver(cost [][][][]int, start [2]int, units *[D][P][]int) (
 				if i == x && j == y {
 					continue
 				}
-				tc := c + cost[x][y][i][j] + cost_move*len(units[i][j]) + cost_move_day*abs(x-i)
+				tc := c + get_cost(x, y, i, j)
 				if dp[i][j][z+1] <= tc {
 					continue
 				}
@@ -177,26 +201,44 @@ func timetableChangeSolver(cost [][][][]int, start [2]int, units *[D][P][]int) (
 			}
 		}
 	}
-	log.Println("end index, score", ex, ey, ez, s)
-	if ez == 0 {
+	heap.Init(h)
+	for i := 0; i < n; i++ {
+		for j := 0; j < m; j++ {
+			if i == sx && j == sy {
+				continue
+			}
+			for k := 0; k < K; k++ {
+				if INF <= dp[i][j][k] {
+					continue
+				}
+				heap.Push(h, [IDX + 1]int{dp[i][j][k] + get_cost(i, j, sx, sy), i, j, k})
+			}
+		}
+	}
+	var ex, ey, ez int
+	if h.Len() == 0 {
 		return nil, ERR_CANT_SOLVE
 	}
-	var res [][2]int
+	tmp := heap.Pop(h).([IDX + 1]int)
+	c, ex, ey, ez := tmp[0], tmp[1], tmp[2], tmp[3]
+	logger.Debugf("solver cost: %v, end index: %v, %v, %v", c, ex, ey, ez)
+	mv := [][2]int{{ex, ey}}
 	for i := 0; i < K && ez > 0; i++ {
 		b := bef[ex][ey][ez]
 		x, y, z := b[0], b[1], b[2]
-		res = append(res, [2]int{x, y})
+		mv = append(mv, [2]int{x, y})
 		ex, ey, ez = x, y, z
-		log.Println(x, y, z)
 	}
 	if ex != sx || ey != sy || ez != 0 {
 		return nil, errors.NewError("internal error")
 	}
-	rn := len(res)
-	for i := 0; i < rn/2; i++ {
-		res[i], res[rn-i-1] = res[rn-i-1], res[i]
+	mn := len(mv)
+	for i := 0; i < mn/2; i++ {
+		mv[i], mv[mn-i-1] = mv[mn-i-1], mv[i]
 	}
-	return res, nil
+
+	return mv, nil
+
 }
 
 // 時間割がまとめられるかどうか
@@ -506,10 +548,11 @@ func (*calcCost) regulizeCost(cost [][][][]int) {
 // }
 
 // index が timetable に対応した teacher の avoid を返す
+// avoid[day1][period1][day2][period2]
+// cost from (day1,period1) to (day2,period2)
 func getAvoidCost(
 	units *[D][P][]int, teacher []usecase.Teacher, table []usecase.Timetable, start_day time.Time,
 ) ([][][][]int, error) {
-	// avoid[day][period][day][period]
 	avoid2cost := func(av int) int {
 		if av >= 7 {
 			return av * av * 1000
@@ -549,11 +592,11 @@ func getAvoidCost(
 		}
 	}
 	cal.regulizeCost(avoid)
-	log.Println("testB", start_day)
+	logger.Debug("testB", start_day)
 	return avoid, nil
 }
 
-//idxs: 使えるコマの index
+// idxs: 使えるコマの index
 func getCost(
 	units *[D][P][]int,
 	other_units *[D][P][]int,
@@ -641,7 +684,7 @@ func getFinalCost(
 	return cost
 }
 
-// 	others で、動かしたとき教師が被っているを列挙する
+// others で、動かしたとき教師が被っているを列挙する
 func getOtherTeacherInval(units *[D][P][]int, others *[D][P][]int, tt_all []usecase.Timetable, move [][2]int) []usecase.Timetable {
 	var res []usecase.Timetable
 	for i := 0; i < len(move); i++ {
@@ -733,7 +776,6 @@ func ChangeUnit(
 	change_unit_idx := [2]int{
 		int(change_unit.Day.Sub(start_day).Hours()) / 24, change_unit.FrameId % P,
 	}
-	log.Println("testsdfa", change_unit_idx, change_unit)
 	var ban_units_idx [][2]int
 	for _, b := range ban_units {
 		ban_units_idx = append(ban_units_idx, [2]int{
@@ -817,6 +859,7 @@ func ChangeUnit(
 			return nil, cost_inf, errors.ErrorWrap(err)
 		}
 		if teacher_relax == -1 {
+			logger.Debug("teacher fixed move", mv, getFinalCost(mv, cost))
 			if c := getFinalCost(mv, cost); c < final_cost {
 				final_cost = c
 				final_move = createMove(units, mv)
@@ -825,8 +868,13 @@ func ChangeUnit(
 		}
 		co := 0
 		next_units := getOtherTeacherInval(units, others, tt_all, mv)
-		var move []usecase.TimetableMove
-		log.Print("movebef", co, move)
+		move := createMove(units, mv)
+		ApplyChange(tt_all, move)
+		defer func(t []usecase.Timetable, v []usecase.TimetableMove) {
+			CancelChange(t, v)
+		}(tt_all, move)
+
+		logger.Debug("teacher relax move bef", co, move)
 		for _, u := range next_units {
 			flag := false // unit を動かす必要があるのかどうか
 			for _, t := range tt_all {
@@ -871,7 +919,7 @@ func ChangeUnit(
 				break
 			}
 		}
-		log.Print("move", co, move)
+		logger.Debug("move", co, move)
 		if co < final_cost {
 			final_cost = co
 			final_move = move
@@ -917,7 +965,7 @@ func (*SolverClass) TimetableChange(
 	var move []usecase.TimetableMove
 	score := 0
 	for cnt := 0; cnt < len(ban_units) && len(change_tt) > 0; cnt++ {
-		log.Println("change tt", change_tt)
+		logger.Debug("change tt", change_tt)
 		res, sc, err := ChangeUnit(tt_all, graph, &change_tt[0], change_teacher.Id, ban_units, places, teachers, start_day, holidays, teacher_relax)
 		if err != nil {
 			return res, sc, errors.ErrorWrap(err)
@@ -947,17 +995,6 @@ func (*SolverClass) TimetableChange(
 		if err != nil {
 			return nil, 0, errors.ErrorWrap(err)
 		}
-		// for debug
-		// for _, t := range tt_all {
-		// 	for _, c := range change_tt {
-		// 		if t.Id != c.Id {
-		// 			continue
-		// 		}
-		// 		if !(t.TeacherIds[0] == c.TeacherIds[0] && t.ClassId == c.ClassId && equalDate(t.Day, c.Day) && t.FrameId == c.FrameId && t.SubjectId == c.SubjectId && t.DurationId == c.DurationId) {
-		// 			log.Fatal("apply change error", t, c)
-		// 		}
-		// 	}
-		// }
 	}
 	if len(change_tt) > 0 {
 		return nil, 0, errors.NewError("cannot solve")

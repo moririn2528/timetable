@@ -3,7 +3,6 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"sort"
@@ -424,6 +423,129 @@ func (dc *DatabaseTimetable) GetTimetable(
 	return res, nil
 }
 
+// 実際に時間割を移動する
+// transaction は呼び出し元で行う、ここでは commit, rollback はしない
+// normal: 通常時間割
+// additional: 追加時間割
+func MoveTimetable(move []usecase.TimetableMove, normal []usecase.Timetable, additional []usecase.Timetable, tx *sql.Tx) error {
+
+	type NormalTimetable struct {
+		Id           int           `json:"id" db:"id"`
+		DurationId   int           `json:"duration_id" db:"duration_id"`
+		ClassId      int           `json:"class_id" db:"class_id"`
+		TeacherId    int           `json:"teacher_id" db:"teacher_id"`
+		SubjectId    int           `json:"subject_id" db:"subject_id"`
+		FrameId      int           `json:"frame_id" db:"frame_id"`
+		PlaceId      int           `json:"place_id" db:"place_id"`
+		AddTeacherId sql.NullInt32 `json:"add_teacher_id" db:"add_teacher_id"`
+	}
+	type AdditionalTimetable struct {
+		NormalTimetable
+		Day time.Time `json:"day" db:"day"`
+	}
+
+	if len(normal) > 0 {
+		type DelTimetable struct {
+			Id       int       `json:"id" db:"id"`
+			NormalId int       `json:"normal_id" db:"normal_id"`
+			Day      time.Time `json:"day" db:"day"`
+		}
+		var dels []DelTimetable
+		for _, t := range normal {
+			dels = append(dels, DelTimetable{
+				Id:       t.Id,
+				NormalId: parse2DatabaseId(t.Id),
+				Day:      t.Day,
+			})
+		}
+		res, err := tx.Exec("INSERT INTO deleted_normal_timetable(id,normal_id,day) VALUES (:id,:normal_id,:day)", dels)
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+		rnum, err := res.RowsAffected()
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+		if int(rnum) != len(normal) {
+			return errors.ErrorWrap(err)
+		}
+	}
+	if len(additional) > 0 {
+		var ids []string
+		for _, t := range additional {
+			ids = append(ids, strconv.Itoa(parse2DatabaseId(t.Id)))
+		}
+		res, err := tx.Exec("DELETE FROM additional_timetable WHERE id in (" + strings.Join(ids, ",") + ")")
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+		for _, t := range additional {
+			tim := AdditionalTimetable{
+				NormalTimetable: NormalTimetable{
+					Id:           parse2DatabaseId(t.Id),
+					DurationId:   t.DurationId,
+					ClassId:      t.ClassId,
+					TeacherId:    t.TeacherIds[0],
+					SubjectId:    t.SubjectId,
+					FrameId:      t.FrameId,
+					PlaceId:      t.PlaceId,
+					AddTeacherId: sql.NullInt32{Int32: 0, Valid: false},
+				},
+				Day: t.Day,
+			}
+			if len(t.TeacherIds) == 2 {
+				tim.AddTeacherId = sql.NullInt32{
+					Int32: int32(t.TeacherIds[1]), Valid: true,
+				}
+			}
+		}
+		rnum, err := res.RowsAffected()
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+		if int(rnum) != len(additional) {
+			return errors.ErrorWrap(err)
+		}
+	}
+
+	// database に追加
+	{
+		var inserts []AdditionalTimetable
+		for _, mv := range move {
+			t := mv.Unit
+			tim := AdditionalTimetable{
+				NormalTimetable: NormalTimetable{
+					DurationId:   t.DurationId,
+					ClassId:      t.ClassId,
+					TeacherId:    t.TeacherIds[0],
+					SubjectId:    t.SubjectId,
+					FrameId:      mv.FrameId,
+					PlaceId:      t.PlaceId,
+					AddTeacherId: sql.NullInt32{Int32: 0, Valid: false},
+				},
+				Day: mv.Day,
+			}
+			if len(t.TeacherIds) == 2 {
+				tim.AddTeacherId = sql.NullInt32{
+					Int32: int32(t.TeacherIds[1]), Valid: true,
+				}
+			}
+			inserts = append(inserts, tim)
+		}
+		_, err := tx.Exec("INSERT INTO additional_timetable"+
+			"(duration_id,class_id,teacher_id,subject_id,frame_id,day,add_teacher_id) VALUES "+
+			"(:duration_id,:class_id,:teacher_id,:subject_id,:frame_id,:day,:add_teacher_id)",
+			inserts,
+		)
+		if err != nil {
+			return errors.ErrorWrap(err)
+		}
+	}
+
+	return nil
+}
+
+// チェックしてから時間割を移動する
 func (dc *DatabaseTimetable) MoveTimetable(
 	move []usecase.TimetableMove,
 ) error {
@@ -475,11 +597,11 @@ func (dc *DatabaseTimetable) MoveTimetable(
 			id2idx[t.Id] = i
 		}
 		var rows []NormalTimetable
-		err := db.Select(rows, strings.Join([]string{
+		err := db.Select(&rows, strings.Join([]string{
 			"SELECT id, duration_id, class_id, teacher_id, subject_id, frame_id,",
 			"place_id, add_teacher_id FROM normal_timetable",
 			"WHERE id in (" + strings.Join(idstrs, ",") + ")",
-			"ORDERED BY id",
+			"ORDER BY id",
 		}, " "))
 		if err != nil {
 			return errors.ErrorWrap(err)
@@ -494,14 +616,15 @@ func (dc *DatabaseTimetable) MoveTimetable(
 				return errors.NewError("assert error")
 			}
 			t2 := nor[idx]
+			logger.Error(t1, t2)
 			if !(t1.Id == parse2DatabaseId(t2.Id) && t1.DurationId == t2.DurationId && t1.ClassId == t2.ClassId && t1.SubjectId == t2.SubjectId &&
 				t1.PlaceId == t2.PlaceId && equal_teacher(t2.TeacherIds, t1.TeacherId, t1.AddTeacherId) && t1.FrameId/usecase.PERIOD == int(t2.Day.Weekday())-1) {
-				return errors.NewError(http.StatusBadRequest, "timetable is difference")
+				return errors.NewError(http.StatusBadRequest, "timetable is differenc")
 			}
 			cnt++
 		}
 		if len(nor) != cnt {
-			return errors.NewError(http.StatusBadRequest, "timetable is difference")
+			return errors.NewError(http.StatusBadRequest, "timetable is different")
 		}
 	}
 	if len(add) > 0 {
@@ -512,11 +635,11 @@ func (dc *DatabaseTimetable) MoveTimetable(
 			id2idx[t.Id] = i
 		}
 		var rows []AdditionalTimetable
-		err := db.Select(rows, strings.Join([]string{
+		err := db.Select(&rows, strings.Join([]string{
 			"SELECT id, duration_id, class_id, teacher_id, subject_id, frame_id,",
 			"place_id, add_teacher_id, day FROM additional_timetable",
 			"WHERE id in (" + strings.Join(idstrs, ",") + ")",
-			"ORDERED BY id",
+			"ORDER BY id",
 		}, " "))
 		if err != nil {
 			return errors.ErrorWrap(err)
@@ -533,154 +656,28 @@ func (dc *DatabaseTimetable) MoveTimetable(
 			t2 := add[idx]
 			if !(t1.Id == parse2DatabaseId(t2.Id) && t1.DurationId == t2.DurationId && t1.ClassId == t2.ClassId && t1.SubjectId == t2.SubjectId &&
 				t1.PlaceId == t2.PlaceId && t1.Day.Equal(t2.Day) && equal_teacher(t2.TeacherIds, t1.TeacherId, t1.AddTeacherId)) {
-				return errors.NewError(http.StatusBadRequest, "timetable is difference")
+				return errors.NewError(http.StatusBadRequest, "timetable is different")
 			}
 			cnt++
 		}
 		if len(add) != cnt {
-			return errors.NewError(http.StatusBadRequest, "timetable is difference")
+			return errors.NewError(http.StatusBadRequest, "timetable is different")
 		}
 	}
 
 	// database から削除
-	recoverNormal := func() {}
-	if len(nor) > 0 {
-		type DelTimetable struct {
-			Id       int       `json:"id" db:"id"`
-			NormalId int       `json:"normal_id" db:"normal_id"`
-			Day      time.Time `json:"day" db:"day"`
-		}
-		var dels []DelTimetable
-		for _, t := range nor {
-			dels = append(dels, DelTimetable{
-				Id:       t.Id,
-				NormalId: parse2DatabaseId(t.Id),
-				Day:      t.Day,
-			})
-		}
-		res, err := db.Exec("INSERT INTO deleted_normal_timetable(id,normal_id,day) VALUES (:id,:normal_id,:day)", dels)
-		if err != nil {
-			return errors.ErrorWrap(err)
-		}
-		recoverNormal = func() {
-			if len(nor) == 0 {
-				return
-			}
-			var ids []string
-			for _, t := range nor {
-				ids = append(ids, strconv.Itoa(t.Id))
-			}
-			_, err = db.Exec("DELETE FROM deleted_normal_timetable WHERE id IN (" + strings.Join(ids, ",") + ")")
-			if err != nil {
-				log.Printf("Critical Error: %v", err)
-			}
-		}
-		rnum, err := res.RowsAffected()
-		if err != nil {
-			recoverNormal()
-			return errors.ErrorWrap(err)
-		}
-		if int(rnum) != len(nor) {
-			recoverNormal()
-			return errors.ErrorWrap(err)
-		}
+	tx, err := db.Begin()
+	if err != nil {
+		return errors.ErrorWrap(err)
 	}
-	recoverAdditional := func() {}
-	if len(add) > 0 {
-		var ids []string
-		for _, t := range add {
-			ids = append(ids, strconv.Itoa(parse2DatabaseId(t.Id)))
-		}
-		res, err := db.Exec("DELETE FROM additional_timetable WHERE id in (" + strings.Join(ids, ",") + ")")
-		if err != nil {
-			recoverNormal()
-			return errors.ErrorWrap(err)
-		}
-		var dels []AdditionalTimetable
-		for _, t := range add {
-			tim := AdditionalTimetable{
-				NormalTimetable: NormalTimetable{
-					Id:           parse2DatabaseId(t.Id),
-					DurationId:   t.DurationId,
-					ClassId:      t.ClassId,
-					TeacherId:    t.TeacherIds[0],
-					SubjectId:    t.SubjectId,
-					FrameId:      t.FrameId,
-					PlaceId:      t.PlaceId,
-					AddTeacherId: sql.NullInt32{Int32: 0, Valid: false},
-				},
-				Day: t.Day,
-			}
-			if len(t.TeacherIds) == 2 {
-				tim.AddTeacherId = sql.NullInt32{
-					Int32: int32(t.TeacherIds[1]), Valid: true,
-				}
-			}
-			dels = append(dels, tim)
-		}
-		recoverAdditional = func() {
-			_, err = db.Exec("INSERT INTO additional_timetable"+
-				"(id,duration_id,class_id,teacher_id,subject_id,frame_id,day,add_teacher_id) VALUES "+
-				"(:id,:duration_id,:class_id,:teacher_id,:subject_id,:frame_id,:day,:add_teacher_id)",
-				dels,
-			)
-			if err != nil {
-				log.Printf("Critical Error: %v", err)
-			}
-		}
-		recover := func() {
-			recoverNormal()
-			recoverAdditional()
-		}
-		rnum, err := res.RowsAffected()
-		if err != nil {
-			recover()
-			return errors.ErrorWrap(err)
-		}
-		if int(rnum) != len(add) {
-			recover()
-			return errors.ErrorWrap(err)
-		}
+	err = MoveTimetable(move, nor, add, tx)
+	if err != nil {
+		tx.Rollback()
+		return errors.ErrorWrap(err)
 	}
-
-	// database に追加
-	recover := func() {
-		recoverNormal()
-		recoverAdditional()
+	err = tx.Commit()
+	if err != nil {
+		return errors.ErrorWrap(err)
 	}
-	{
-		var inserts []AdditionalTimetable
-		for _, mv := range move {
-			t := mv.Unit
-			tim := AdditionalTimetable{
-				NormalTimetable: NormalTimetable{
-					DurationId:   t.DurationId,
-					ClassId:      t.ClassId,
-					TeacherId:    t.TeacherIds[0],
-					SubjectId:    t.SubjectId,
-					FrameId:      mv.FrameId,
-					PlaceId:      t.PlaceId,
-					AddTeacherId: sql.NullInt32{Int32: 0, Valid: false},
-				},
-				Day: mv.Day,
-			}
-			if len(t.TeacherIds) == 2 {
-				tim.AddTeacherId = sql.NullInt32{
-					Int32: int32(t.TeacherIds[1]), Valid: true,
-				}
-			}
-			inserts = append(inserts, tim)
-		}
-		_, err := db.Exec("INSERT INTO additional_timetable"+
-			"(duration_id,class_id,teacher_id,subject_id,frame_id,day,add_teacher_id) VALUES "+
-			"(:duration_id,:class_id,:teacher_id,:subject_id,:frame_id,:day,:add_teacher_id)",
-			inserts,
-		)
-		if err != nil {
-			recover()
-			return errors.ErrorWrap(err)
-		}
-	}
-
 	return nil
 }

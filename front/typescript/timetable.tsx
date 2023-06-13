@@ -25,30 +25,57 @@ export const timetableMoveDecoder = record({
 	frame_id: number,
 });
 
+export const TimetableStyle: React.CSSProperties = {
+	borderCollapse: "collapse",
+	textAlign: "center",
+}
+
+export const TimetableUnitStyle: React.CSSProperties = {
+	border: "1px dotted #333",
+	width: 80,
+	height: 70,
+}
+
 export type TimetableUnitProps = {
 	units: TimetableType[];
 	color1?: string;
 	color2?: string;
 	onClick?: () => void;
+	onRightClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
 };
 
 export const TimetableUnit = (props: TimetableUnitProps) => {
 	const style1: React.CSSProperties = {
+		border: "1px dotted #333",
+		height: "40px",
+		fontSize: "20px",
 		backgroundColor: props.color1,
 	};
 	const style2: React.CSSProperties = {
+		border: "1px dotted #333",
+		height: "15px",
+		fontSize: "10px",
 		backgroundColor: props.color2,
 	};
 	let values: string[] = [];
-	if (props.units.length == 1) {
+	if (props.units.length === 1) {
 		const u = props.units[0];
 		values = [u.subject_name, u.class_name, u.teacher_name.join(",")];
 	} else {
 		const l = props.units.length;
-		values = [l == 0 ? "" : String(l), "", ""];
+		values = [l === 0 ? "" : String(l), "", ""];
 	}
 	return (
-		<table onClick={props.onClick}>
+		<table
+			onClick={props.onClick}
+			onContextMenu={props.onRightClick}
+			style={{
+				borderCollapse: "collapse",
+				border: "1px solid #333",
+				width: "100%",
+				height: "100%",
+				userSelect: "none",
+			}}>
 			<tbody>
 				<tr>
 					<td className="subject" style={style1}>
@@ -90,7 +117,9 @@ export const TimetablePreviewDate = (props: { today: Date; date: Date; setDate: 
 		props.setDate(d);
 	};
 	return (
-		<div className="flex">
+		<div style={{
+			display: "flex",
+		}}>
 			<div onClick={setLastWeek}>{"先週<"}</div>
 			<div onClick={setNextWeek}>{">来週"}</div>
 		</div>
