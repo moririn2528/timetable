@@ -5,7 +5,4 @@ WORKDIR /api
 RUN mkdir -p /front
 COPY ./api/go/start.sh .
 RUN chmod +x start.sh
-COPY ./api/go /api/go
-COPY ./front /front
-ENV EXEC_ENV=docker
-CMD ["./start.sh"]
+CMD ["bash"]

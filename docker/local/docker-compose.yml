@@ -3,6 +3,7 @@ services:
     app:
         build:
             context: ../../
+            dockerfile: local.Dockerfile
         container_name: app
         env_file:
             - .env
